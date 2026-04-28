@@ -1,0 +1,16 @@
+# Node
+node_modules/
+.next/
+
+# Laravel
+/vendor
+.env
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
