@@ -1,16 +1,13 @@
-# Node
-node_modules/
-.next/
-
 # Laravel
-/vendor
-.env
+backend/vendor/
+backend/.env
 
-# Logs
-*.log
+# Next.js
+frontend/node_modules/
+frontend/.next/
 
 # OS
 .DS_Store
 
-# IDE
+# Editor
 .vscode/

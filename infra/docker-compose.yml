@@ -1,0 +1,46 @@
+
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/frontend/Dockerfile
+    container_name: openpersona_frontend
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/backend/Dockerfile
+    container_name: openpersona_backend
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+    ports:
+      - "8000:8000"
+    command: sh -c "composer install && php artisan serve --host=0.0.0.0 --port=8000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    container_name: openpersona_db
+    environment:
+      POSTGRES_DB: openpersona
+      POSTGRES_USER: openpersona
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - openpersona_db_data:/var/lib/postgresql/data
+
+volumes:
+  openpersona_db_data:
+  frontend_node_modules:
