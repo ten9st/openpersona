@@ -1,173 +1,211 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-const API_BASE = 'http://localhost:8000/api';
-
-type Category = {
-  id: number;
-  name: string;
-  slug: string;
-};
-
-type Author = {
-  id: number;
-  last_name: string;
-  first_name: string;
-};
-
-type Post = {
-  id: number;
-  title: string;
-  body: string;
-  status: string;
-  published_at: string | null;
-  view_count: number;
-  bookmark_count: number;
-  user: Author;
-  category: Category;
-};
-
-type PostListResponse = {
-  posts: Post[];
-  meta: {
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-  };
-};
-
-type PostCreateResponse = {
-  message: string;
-  post?: Post;
+type Profile = {
+  display_last_name: string;
+  display_first_name: string | null;
+  age_public: boolean;
+  full_name_public: boolean;
+  biography: string | null;
+  occupation: string | null;
+  occupation_public: boolean;
+  region: string | null;
+  region_public: boolean;
 };
 
 export default function Home() {
-  const [title, setTitle] = useState('日本のエネルギー政策について');
-  const [body, setBody] = useState('ここに本文を書きます。');
+  const [profile, setProfile] = useState<Profile>({
+    display_last_name: '',
+    display_first_name: '',
+    age_public: true,
+    full_name_public: false,
+    biography: '',
+    occupation: '',
+    occupation_public: false,
+    region: '',
+    region_public: false,
+  });
+
   const [message, setMessage] = useState('');
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [listError, setListError] = useState('');
-  const [isLoadingList, setIsLoadingList] = useState(true);
 
-  const fetchPosts = useCallback(async () => {
-    setIsLoadingList(true);
-    setListError('');
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('openpersona_token')
+      : null;
 
-    const res = await fetch(`${API_BASE}/posts`, {
-      headers: { Accept: 'application/json' },
-    });
-
-    const data: PostListResponse = await res.json();
-
-    if (!res.ok) {
-      setListError('投稿一覧の取得に失敗しました。');
-      setPosts([]);
-      setIsLoadingList(false);
-      return;
-    }
-
-    setPosts(data.posts);
-    setIsLoadingList(false);
-  }, []);
-
-  useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
-
-  const createPost = async () => {
-    const token = localStorage.getItem('openpersona_token');
-
+  const fetchProfile = async () => {
     if (!token) {
       setMessage('先にログインしてください。');
       return;
     }
 
-    setMessage('投稿中...');
+    const res = await fetch('http://localhost:8000/api/profile', {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-    const res = await fetch(`${API_BASE}/posts`, {
-      method: 'POST',
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMessage('プロフィール取得に失敗しました。');
+      return;
+    }
+
+    setProfile(data.profile);
+    setMessage('');
+  };
+
+  const profilePayload = {
+    display_last_name: profile.display_last_name,
+    display_first_name: profile.display_first_name,
+    age_public: profile.age_public,
+    full_name_public: profile.full_name_public,
+    biography: profile.biography,
+    occupation: profile.occupation,
+    occupation_public: profile.occupation_public,
+    region: profile.region,
+    region_public: profile.region_public,
+  };
+
+  const updateProfile = async () => {
+    if (!token) {
+      setMessage('先にログインしてください。');
+      return;
+    }
+
+    const res = await fetch('http://localhost:8000/api/profile', {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        category_id: 1,
-        title,
-        body,
-        status: 'published',
-      }),
+      body: JSON.stringify(profilePayload),
     });
 
-    const data: PostCreateResponse = await res.json();
+    const data = await res.json();
 
     if (!res.ok) {
-      setMessage(data.message ?? '投稿に失敗しました。');
+      console.log(data);
+      setMessage('プロフィール更新に失敗しました。');
       return;
     }
 
+    setProfile(data.profile);
     setMessage(data.message);
-    await fetchPosts();
   };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   return (
     <main style={{ padding: 40 }}>
-      <h1>OpenPersona</h1>
+      <h1>OpenPersona プロフィール編集</h1>
 
-      <section style={{ marginBottom: 48 }}>
-        <h2>投稿作成</h2>
-
-        <div style={{ display: 'grid', gap: 12, maxWidth: 600 }}>
+      <div style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+        <label>
+          公開用の姓
           <input
-            placeholder="タイトル"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={profile.display_last_name}
+            onChange={(e) =>
+              setProfile({ ...profile, display_last_name: e.target.value })
+            }
           />
+        </label>
 
+        <label>
+          公開用の名
+          <input
+            value={profile.display_first_name ?? ''}
+            onChange={(e) =>
+              setProfile({ ...profile, display_first_name: e.target.value })
+            }
+          />
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={profile.full_name_public}
+            onChange={(e) =>
+              setProfile({ ...profile, full_name_public: e.target.checked })
+            }
+          />
+          氏名を公開する
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={profile.age_public}
+            onChange={(e) =>
+              setProfile({ ...profile, age_public: e.target.checked })
+            }
+          />
+          年齢を公開する
+        </label>
+
+        <label>
+          自己紹介
           <textarea
-            placeholder="本文"
-            value={body}
-            rows={10}
-            onChange={(e) => setBody(e.target.value)}
+            rows={4}
+            value={profile.biography ?? ''}
+            onChange={(e) =>
+              setProfile({ ...profile, biography: e.target.value })
+            }
           />
+        </label>
 
-          <button onClick={createPost}>投稿する</button>
+        <label>
+          職業
+          <input
+            value={profile.occupation ?? ''}
+            onChange={(e) =>
+              setProfile({ ...profile, occupation: e.target.value })
+            }
+          />
+        </label>
 
-          {message && <p>{message}</p>}
-        </div>
-      </section>
+        <label>
+          <input
+            type="checkbox"
+            checked={profile.occupation_public}
+            onChange={(e) =>
+              setProfile({ ...profile, occupation_public: e.target.checked })
+            }
+          />
+          職業を公開する
+        </label>
 
-      <section>
-        <h2>投稿一覧</h2>
+        <label>
+          地域
+          <input
+            value={profile.region ?? ''}
+            onChange={(e) =>
+              setProfile({ ...profile, region: e.target.value })
+            }
+          />
+        </label>
 
-        {isLoadingList && <p>読み込み中...</p>}
-        {listError && <p>{listError}</p>}
+        <label>
+          <input
+            type="checkbox"
+            checked={profile.region_public}
+            onChange={(e) =>
+              setProfile({ ...profile, region_public: e.target.checked })
+            }
+          />
+          地域を公開する
+        </label>
 
-        {!isLoadingList && !listError && posts.length === 0 && (
-          <p>公開中の投稿はまだありません。</p>
-        )}
+        <button onClick={updateProfile}>プロフィールを保存</button>
 
-        <ul style={{ display: 'grid', gap: 16, maxWidth: 720, padding: 0, listStyle: 'none' }}>
-          {posts.map((post) => (
-            <li
-              key={post.id}
-              style={{
-                border: '1px solid #ddd',
-                borderRadius: 8,
-                padding: 16,
-              }}
-            >
-              <p style={{ margin: 0, color: '#666', fontSize: 14 }}>
-                {post.category.name} ・ {post.user.last_name} {post.user.first_name}
-              </p>
-              <h3 style={{ margin: '8px 0' }}>{post.title}</h3>
-              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{post.body}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+        {message && <p>{message}</p>}
+      </div>
     </main>
   );
 }

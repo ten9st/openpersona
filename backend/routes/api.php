@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\ProfileController;
+use App\Models\Profile;
 
 Route::post('/register', function (Request $request) {
     $validated = $request->validate([
@@ -22,6 +24,14 @@ Route::post('/register', function (Request $request) {
         'last_name' => $validated['last_name'],
         'first_name' => $validated['first_name'],
         'birthdate' => $validated['birthdate'],
+    ]);
+
+    Profile::create([
+        'user_id' => $user->id,
+        'display_last_name' => $user->last_name,
+        'display_first_name' => $user->first_name,
+        'age_public' => true,
+        'full_name_public' => false,
     ]);
 
     return response()->json([
@@ -66,3 +76,6 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 
 Route::get('/posts', [PostController::class, 'index']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
+
+Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
+Route::middleware('auth:sanctum')->put('/profile', [ProfileController::class, 'update']);

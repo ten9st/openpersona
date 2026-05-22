@@ -43,4 +43,12 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * プロフィールモデルとのリレーション
+     */
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
 }
