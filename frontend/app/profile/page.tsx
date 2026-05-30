@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Alert, PageHeader, PageShell } from '@/components/page-shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckboxLabel, Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 
 type Profile = {
   display_last_name: string;
@@ -31,6 +37,7 @@ export default function ProfilePage() {
   });
 
   const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
 
   const getToken = () => {
     return localStorage.getItem('openpersona_token');
@@ -56,6 +63,7 @@ export default function ProfilePage() {
     if (!res.ok) {
       console.log(data);
       setMessage('プロフィール取得に失敗しました。');
+      setIsError(true);
       return;
     }
 
@@ -85,11 +93,12 @@ export default function ProfilePage() {
     if (!res.ok) {
       console.log(data);
       setMessage('プロフィール更新に失敗しました。');
+      setIsError(true);
       return;
     }
 
     setMessage(data.message);
-
+    setIsError(false);
     router.push('/posts');
   };
 
@@ -98,96 +107,111 @@ export default function ProfilePage() {
   }, []);
 
   return (
-    <main style={{ padding: 40 }}>
-      <h1>プロフィール編集</h1>
+    <PageShell maxWidth="lg">
+      <PageHeader
+        title="プロフィール編集"
+        description="公開プロフィールの内容を設定します"
+      />
 
-      <div style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
-        <label>
-          公開用の姓
-          <input
-            value={profile.display_last_name}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                display_last_name: e.target.value,
-              })
-            }
-          />
-        </label>
+      <Card>
+        <div className="grid gap-6">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Label>
+              公開用の姓
+              <Input
+                value={profile.display_last_name}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    display_last_name: e.target.value,
+                  })
+                }
+              />
+            </Label>
 
-        <label>
-          公開用の名
-          <input
-            value={profile.display_first_name ?? ''}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                display_first_name: e.target.value,
-              })
-            }
-          />
-        </label>
+            <Label>
+              公開用の名
+              <Input
+                value={profile.display_first_name ?? ''}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    display_first_name: e.target.value,
+                  })
+                }
+              />
+            </Label>
+          </div>
 
-        <label>
-          <input
-            type="checkbox"
-            checked={profile.full_name_public}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                full_name_public: e.target.checked,
-              })
-            }
-          />
-          氏名を公開する
-        </label>
+          <CheckboxLabel>
+            <input
+              type="checkbox"
+              className="size-4 rounded border-border text-primary focus:ring-ring"
+              checked={profile.full_name_public}
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  full_name_public: e.target.checked,
+                })
+              }
+            />
+            氏名を公開する
+          </CheckboxLabel>
 
-        <label>
-          自己紹介
-          <textarea
-            rows={5}
-            value={profile.biography ?? ''}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                biography: e.target.value,
-              })
-            }
-          />
-        </label>
+          <Label>
+            自己紹介
+            <Textarea
+              rows={5}
+              value={profile.biography ?? ''}
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  biography: e.target.value,
+                })
+              }
+            />
+          </Label>
 
-        <label>
-          職業
-          <input
-            value={profile.occupation ?? ''}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                occupation: e.target.value,
-              })
-            }
-          />
-        </label>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Label>
+              職業
+              <Input
+                value={profile.occupation ?? ''}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    occupation: e.target.value,
+                  })
+                }
+              />
+            </Label>
 
-        <label>
-          地域
-          <input
-            value={profile.region ?? ''}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                region: e.target.value,
-              })
-            }
-          />
-        </label>
+            <Label>
+              地域
+              <Input
+                value={profile.region ?? ''}
+                onChange={(e) =>
+                  setProfile({
+                    ...profile,
+                    region: e.target.value,
+                  })
+                }
+              />
+            </Label>
+          </div>
 
-        <button onClick={updateProfile}>
-          プロフィールを保存
-        </button>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button onClick={updateProfile}>プロフィールを保存</Button>
+            <Button variant="secondary" onClick={() => router.push('/posts')}>
+              キャンセル
+            </Button>
+          </div>
 
-        {message && <p>{message}</p>}
-      </div>
-    </main>
+          {message && (
+            <Alert message={message} variant={isError ? 'error' : 'info'} />
+          )}
+        </div>
+      </Card>
+    </PageShell>
   );
 }
