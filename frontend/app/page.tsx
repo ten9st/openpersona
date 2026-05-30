@@ -3,7 +3,7 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <main style={{ padding: 40 }}>
-      <h1>OpenPersona</h1>
+      <h1>OpenPersona プロフィール編集</h1>
 
       <p>信頼できる情報ソースを公開するSNS</p>
 
