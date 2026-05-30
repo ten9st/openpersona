@@ -1,7 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Alert, PageHeader, PageShell } from '@/components/page-shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 
 type RegisterResponse = {
   message: string;
@@ -23,9 +29,11 @@ export default function RegisterPage() {
   const [firstName, setFirstName] = useState('太郎');
   const [birthdate, setBirthdate] = useState('1990-01-01');
   const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
 
   const register = async () => {
     setMessage('登録中...');
+    setIsError(false);
 
     const res = await fetch('http://localhost:8000/api/register', {
       method: 'POST',
@@ -46,6 +54,7 @@ export default function RegisterPage() {
 
     if (!res.ok) {
       setMessage(data.message ?? '登録に失敗しました。');
+      setIsError(true);
       return;
     }
 
@@ -54,45 +63,79 @@ export default function RegisterPage() {
   };
 
   return (
-    <main style={{ padding: 40 }}>
-      <h1>新規登録</h1>
+    <PageShell maxWidth="sm">
+      <PageHeader
+        title="新規登録"
+        description="OpenPersona アカウントを作成"
+      />
 
-      <div style={{ display: 'grid', gap: 12, maxWidth: 400 }}>
-        <input
-          placeholder="メールアドレス"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+      <Card>
+        <div className="grid gap-5">
+          <Label>
+            メールアドレス
+            <Input
+              placeholder="you@example.com"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Label>
 
-        <input
-          placeholder="パスワード"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <Label>
+            パスワード
+            <Input
+              placeholder="パスワード"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Label>
 
-        <input
-          placeholder="姓"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-        />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Label>
+              姓
+              <Input
+                placeholder="山田"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </Label>
 
-        <input
-          placeholder="名"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-        />
+            <Label>
+              名
+              <Input
+                placeholder="太郎"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </Label>
+          </div>
 
-        <input
-          type="date"
-          value={birthdate}
-          onChange={(e) => setBirthdate(e.target.value)}
-        />
+          <Label>
+            生年月日
+            <Input
+              type="date"
+              value={birthdate}
+              onChange={(e) => setBirthdate(e.target.value)}
+            />
+          </Label>
 
-        <button onClick={register}>登録する</button>
+          <Button onClick={register} className="w-full">
+            登録する
+          </Button>
 
-        {message && <p>{message}</p>}
-      </div>
-    </main>
+          {message && (
+            <Alert message={message} variant={isError ? 'error' : 'info'} />
+          )}
+
+          <p className="text-center text-sm text-muted">
+            すでにアカウントをお持ちの方は{' '}
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              ログイン
+            </Link>
+          </p>
+        </div>
+      </Card>
+    </PageShell>
   );
 }
