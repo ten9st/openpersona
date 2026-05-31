@@ -33,9 +33,11 @@ export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const logout = () => {
     localStorage.removeItem('openpersona_token');
+    setIsLoggedIn(false);
     router.push('/login');
   };
 
@@ -62,6 +64,7 @@ export default function PostsPage() {
   };
 
   useEffect(() => {
+    setIsLoggedIn(Boolean(localStorage.getItem('openpersona_token')));
     fetchPosts();
   }, []);
 
@@ -73,13 +76,21 @@ export default function PostsPage() {
       />
 
       <ActionBar>
-        <NavLink href="/posts/create" variant="primary">
-          投稿する
-        </NavLink>
-        <NavLink href="/profile">プロフィール編集</NavLink>
-        <Button variant="ghost" onClick={logout}>
-          ログアウト
-        </Button>
+        {isLoggedIn ? (
+          <>
+            <NavLink href="/posts/create" variant="primary">
+              投稿する
+            </NavLink>
+            <NavLink href="/profile">プロフィール編集</NavLink>
+            <Button variant="ghost" onClick={logout}>
+              ログアウト
+            </Button>
+          </>
+        ) : (
+          <NavLink href="/login" variant="primary">
+            ログインして投稿する
+          </NavLink>
+        )}
       </ActionBar>
 
       {message && (
