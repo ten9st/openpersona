@@ -18,10 +18,22 @@ class PostController extends Controller
 
         $perPage = $validated['per_page'] ?? 20;
 
-        $query = Post::with([
-            'user:id,last_name,first_name',
-            'category:id,name,slug',
-        ])
+        $query = Post::query()
+            ->select([
+                'id',
+                'user_id',
+                'category_id',
+                'title',
+                'view_count',
+                'bookmark_count',
+                'published_at',
+                'created_at',
+                'updated_at',
+            ])
+            ->with([
+                'user:id,last_name,first_name',
+                'category:id,name,slug',
+            ])
             ->where('status', 'published')
             ->latest('published_at');
 
@@ -39,6 +51,24 @@ class PostController extends Controller
                 'per_page' => $posts->perPage(),
                 'total' => $posts->total(),
             ],
+        ]);
+    }
+
+    public function show(Post $post)
+    {
+        if ($post->status !== 'published') {
+            abort(404);
+        }
+
+        $post->increment('view_count');
+
+        $post->load([
+            'user:id,last_name,first_name',
+            'category:id,name,slug',
+        ]);
+
+        return response()->json([
+            'post' => $post,
         ]);
     }
 

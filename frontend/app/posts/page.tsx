@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
@@ -10,8 +11,6 @@ import { Card } from '@/components/ui/card';
 type Post = {
   id: number;
   title: string;
-  body: string;
-  status: string;
   view_count: number;
   bookmark_count: number;
   published_at: string | null;
@@ -97,30 +96,28 @@ export default function PostsPage() {
         )}
 
         {posts.map((post) => (
-          <Card key={post.id} className="transition-colors hover:border-primary/30">
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-              <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
-                {post.category.name}
-              </span>
-              <span className="text-muted">
-                {post.user.last_name}
-                {post.user.first_name}
-              </span>
-            </div>
+          <Link key={post.id} href={`/posts/${post.id}`}>
+            <Card className="transition-colors hover:border-primary/30">
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
+                  {post.category.name}
+                </span>
+                <span className="text-muted">
+                  {post.user.last_name}
+                  {post.user.first_name}
+                </span>
+              </div>
 
-            <h2 className="text-lg font-semibold text-foreground">
-              {post.title}
-            </h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {post.title}
+              </h2>
 
-            <p className="mt-3 text-sm leading-relaxed text-foreground/80">
-              {post.body}
-            </p>
-
-            <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
-              <span>閲覧 {post.view_count}</span>
-              <span>付箋 {post.bookmark_count}</span>
-            </div>
-          </Card>
+              <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
+                <span>閲覧 {post.view_count}</span>
+                <span>付箋 {post.bookmark_count}</span>
+              </div>
+            </Card>
+          </Link>
         ))}
       </div>
     </PageShell>
