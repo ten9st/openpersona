@@ -75,6 +75,7 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 });
 
 Route::get('/posts', [PostController::class, 'index']);
+Route::get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
 
 Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
