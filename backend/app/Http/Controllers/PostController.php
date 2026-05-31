@@ -65,6 +65,10 @@ class PostController extends Controller
         $post->load([
             'user:id,last_name,first_name',
             'category:id,name,slug',
+            'comments' => fn ($query) => $query
+                ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
+                ->with('user:id,last_name,first_name')
+                ->oldest(),
         ]);
 
         return response()->json([

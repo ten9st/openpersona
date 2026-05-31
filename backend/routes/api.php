@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Profile;
@@ -77,6 +78,7 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 Route::get('/posts', [PostController::class, 'index']);
 Route::get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
+Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
 Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
 Route::middleware('auth:sanctum')->put('/profile', [ProfileController::class, 'update']);
