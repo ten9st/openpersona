@@ -9,49 +9,196 @@ import { Textarea } from '@/components/ui/textarea';
 import { CheckboxLabel, Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 
-type Profile = {
-  display_last_name: string;
-  display_first_name: string | null;
-  age_public: boolean;
-  full_name_public: boolean;
-  biography: string | null;
-  occupation: string | null;
-  occupation_public: boolean;
-  region: string | null;
-  region_public: boolean;
+type ProfileVisibilities = {
+  last_name: boolean;
+  first_name: boolean;
+  full_name: boolean;
+  age: boolean;
+  biography: boolean;
+  occupation: boolean;
+  region: boolean;
 };
+
+type EducationForm = {
+  key: string;
+  school_name: string;
+  faculty: string;
+  degree: string;
+  start_year: string;
+  end_year: string;
+  is_public: boolean;
+};
+
+type CareerForm = {
+  key: string;
+  company_name: string;
+  position: string;
+  start_year: string;
+  end_year: string;
+  is_current: boolean;
+  is_public: boolean;
+};
+
+type ProfileForm = {
+  last_name: string;
+  first_name: string;
+  birthdate: string;
+  biography: string;
+  occupation: string;
+  region: string;
+  visibilities: ProfileVisibilities;
+  educations: EducationForm[];
+  careers: CareerForm[];
+};
+
+const defaultVisibilities = (): ProfileVisibilities => ({
+  last_name: true,
+  first_name: false,
+  full_name: false,
+  age: true,
+  biography: false,
+  occupation: false,
+  region: false,
+});
+
+const newKey = () => crypto.randomUUID();
+
+const emptyEducation = (): EducationForm => ({
+  key: newKey(),
+  school_name: '',
+  faculty: '',
+  degree: '',
+  start_year: '',
+  end_year: '',
+  is_public: false,
+});
+
+const emptyCareer = (): CareerForm => ({
+  key: newKey(),
+  company_name: '',
+  position: '',
+  start_year: '',
+  end_year: '',
+  is_current: false,
+  is_public: false,
+});
+
+const defaultForm = (): ProfileForm => ({
+  last_name: '',
+  first_name: '',
+  birthdate: '',
+  biography: '',
+  occupation: '',
+  region: '',
+  visibilities: defaultVisibilities(),
+  educations: [],
+  careers: [],
+});
+
+const API_BASE = 'http://localhost:8000/api';
+
+const parseYear = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const year = Number(trimmed);
+  return Number.isInteger(year) ? year : null;
+};
+
+const mapEducationFromApi = (item: {
+  id: number;
+  school_name: string;
+  faculty: string | null;
+  degree: string | null;
+  start_year: number | null;
+  end_year: number | null;
+  is_public: boolean;
+}): EducationForm => ({
+  key: String(item.id),
+  school_name: item.school_name,
+  faculty: item.faculty ?? '',
+  degree: item.degree ?? '',
+  start_year: item.start_year != null ? String(item.start_year) : '',
+  end_year: item.end_year != null ? String(item.end_year) : '',
+  is_public: item.is_public,
+});
+
+const mapCareerFromApi = (item: {
+  id: number;
+  company_name: string;
+  position: string | null;
+  start_year: number | null;
+  end_year: number | null;
+  is_current: boolean;
+  is_public: boolean;
+}): CareerForm => ({
+  key: String(item.id),
+  company_name: item.company_name,
+  position: item.position ?? '',
+  start_year: item.start_year != null ? String(item.start_year) : '',
+  end_year: item.end_year != null ? String(item.end_year) : '',
+  is_current: item.is_current,
+  is_public: item.is_public,
+});
 
 export default function ProfilePage() {
   const router = useRouter();
-
-  const [profile, setProfile] = useState<Profile>({
-    display_last_name: '',
-    display_first_name: '',
-    age_public: true,
-    full_name_public: false,
-    biography: '',
-    occupation: '',
-    occupation_public: false,
-    region: '',
-    region_public: false,
-  });
-
+  const [form, setForm] = useState<ProfileForm>(defaultForm);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
-  const getToken = () => {
-    return localStorage.getItem('openpersona_token');
+  const getToken = () => localStorage.getItem('openpersona_token');
+
+  const setVisibility = (
+    field: keyof ProfileVisibilities,
+    isPublic: boolean
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      visibilities: { ...prev.visibilities, [field]: isPublic },
+    }));
+  };
+
+  const updateEducation = (
+    key: string,
+    patch: Partial<Omit<EducationForm, 'key'>>
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      educations: prev.educations.map((e) =>
+        e.key === key ? { ...e, ...patch } : e
+      ),
+    }));
+  };
+
+  const updateCareer = (
+    key: string,
+    patch: Partial<Omit<CareerForm, 'key'>>
+  ) => {
+    setForm((prev) => {
+      let careers = prev.careers.map((c) =>
+        c.key === key ? { ...c, ...patch } : c
+      );
+
+      if (patch.is_current) {
+        careers = careers.map((c) => ({
+          ...c,
+          is_current: c.key === key,
+          end_year: c.key === key ? '' : c.end_year,
+        }));
+      }
+
+      return { ...prev, careers };
+    });
   };
 
   const fetchProfile = async () => {
     const token = getToken();
-
     if (!token) {
       router.push('/login');
       return;
     }
 
-    const res = await fetch('http://localhost:8000/api/profile', {
+    const res = await fetch(`${API_BASE}/profile`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
@@ -67,25 +214,62 @@ export default function ProfilePage() {
       return;
     }
 
-    setProfile(data.profile);
+    setForm({
+      last_name: data.user.last_name ?? '',
+      first_name: data.user.first_name ?? '',
+      birthdate: data.user.birthdate ?? '',
+      biography: data.profile.biography ?? '',
+      occupation: data.profile.occupation ?? '',
+      region: data.profile.region ?? '',
+      visibilities: { ...defaultVisibilities(), ...data.visibilities },
+      educations: (data.educations ?? []).map(mapEducationFromApi),
+      careers: (data.careers ?? []).map(mapCareerFromApi),
+    });
   };
 
   const updateProfile = async () => {
     const token = getToken();
-
     if (!token) {
       router.push('/login');
       return;
     }
 
-    const res = await fetch('http://localhost:8000/api/profile', {
+    const res = await fetch(`${API_BASE}/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(profile),
+      body: JSON.stringify({
+        last_name: form.last_name,
+        first_name: form.first_name,
+        birthdate: form.birthdate,
+        biography: form.biography || null,
+        occupation: form.occupation || null,
+        region: form.region || null,
+        visibilities: form.visibilities,
+        educations: form.educations
+          .filter((e) => e.school_name.trim())
+          .map((e) => ({
+            school_name: e.school_name.trim(),
+            faculty: e.faculty.trim() || null,
+            degree: e.degree.trim() || null,
+            start_year: parseYear(e.start_year),
+            end_year: parseYear(e.end_year),
+            is_public: e.is_public,
+          })),
+        careers: form.careers
+          .filter((c) => c.company_name.trim())
+          .map((c) => ({
+            company_name: c.company_name.trim(),
+            position: c.position.trim() || null,
+            start_year: parseYear(c.start_year),
+            end_year: c.is_current ? null : parseYear(c.end_year),
+            is_current: c.is_current,
+            is_public: c.is_public,
+          })),
+      }),
     });
 
     const data = await res.json();
@@ -110,108 +294,456 @@ export default function ProfilePage() {
     <PageShell maxWidth="lg">
       <PageHeader
         title="プロフィール編集"
-        description="公開プロフィールの内容を設定します"
+        description="本名・公開プロフィール・学歴・職歴と各項目の公開設定を編集します"
       />
 
-      <Card>
-        <div className="grid gap-6">
-          <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-6">
+        <Card>
+          <div className="grid gap-6">
+            <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+            <p className="-mt-4 text-sm text-muted">
+              登録時に入力した本名・生年月日を編集できます。公開する項目は下のチェックで選べます。
+            </p>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Label>
+                姓
+                <Input
+                  value={form.last_name}
+                  onChange={(e) =>
+                    setForm({ ...form, last_name: e.target.value })
+                  }
+                />
+              </Label>
+
+              <Label>
+                名
+                <Input
+                  value={form.first_name}
+                  onChange={(e) =>
+                    setForm({ ...form, first_name: e.target.value })
+                  }
+                />
+              </Label>
+            </div>
+
             <Label>
-              公開用の姓
+              生年月日
               <Input
-                value={profile.display_last_name}
+                type="date"
+                value={form.birthdate}
                 onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    display_last_name: e.target.value,
-                  })
+                  setForm({ ...form, birthdate: e.target.value })
                 }
               />
             </Label>
 
-            <Label>
-              公開用の名
-              <Input
-                value={profile.display_first_name ?? ''}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    display_first_name: e.target.value,
-                  })
-                }
-              />
-            </Label>
+            <fieldset className="grid gap-3 rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-medium text-foreground">
+                公開設定
+              </legend>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-border text-primary focus:ring-ring"
+                  checked={form.visibilities.last_name}
+                  onChange={(e) => setVisibility('last_name', e.target.checked)}
+                />
+                姓を公開する
+              </CheckboxLabel>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-border text-primary focus:ring-ring"
+                  checked={form.visibilities.first_name}
+                  onChange={(e) =>
+                    setVisibility('first_name', e.target.checked)
+                  }
+                />
+                名を公開する
+              </CheckboxLabel>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-border text-primary focus:ring-ring"
+                  checked={form.visibilities.full_name}
+                  onChange={(e) =>
+                    setVisibility('full_name', e.target.checked)
+                  }
+                />
+                氏名（姓名）をまとめて公開する
+              </CheckboxLabel>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-border text-primary focus:ring-ring"
+                  checked={form.visibilities.age}
+                  onChange={(e) => setVisibility('age', e.target.checked)}
+                />
+                年齢を公開する
+              </CheckboxLabel>
+            </fieldset>
           </div>
+        </Card>
 
-          <CheckboxLabel>
-            <input
-              type="checkbox"
-              className="size-4 rounded border-border text-primary focus:ring-ring"
-              checked={profile.full_name_public}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  full_name_public: e.target.checked,
-                })
-              }
-            />
-            氏名を公開する
-          </CheckboxLabel>
-
-          <Label>
-            自己紹介
-            <Textarea
-              rows={5}
-              value={profile.biography ?? ''}
-              onChange={(e) =>
-                setProfile({
-                  ...profile,
-                  biography: e.target.value,
-                })
-              }
-            />
-          </Label>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Label>
-              職業
-              <Input
-                value={profile.occupation ?? ''}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    occupation: e.target.value,
-                  })
-                }
-              />
-            </Label>
+        <Card>
+          <div className="grid gap-6">
+            <h2 className="text-lg font-semibold text-foreground">
+              公開プロフィール
+            </h2>
 
             <Label>
-              地域
-              <Input
-                value={profile.region ?? ''}
+              自己紹介
+              <Textarea
+                rows={5}
+                value={form.biography}
                 onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    region: e.target.value,
-                  })
+                  setForm({ ...form, biography: e.target.value })
                 }
               />
+              <CheckboxLabel className="mt-2 font-normal">
+                <input
+                  type="checkbox"
+                  className="size-4 rounded border-border text-primary focus:ring-ring"
+                  checked={form.visibilities.biography}
+                  onChange={(e) =>
+                    setVisibility('biography', e.target.checked)
+                  }
+                />
+                自己紹介を公開する
+              </CheckboxLabel>
             </Label>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Label>
+                職業
+                <Input
+                  value={form.occupation}
+                  onChange={(e) =>
+                    setForm({ ...form, occupation: e.target.value })
+                  }
+                />
+                <CheckboxLabel className="mt-2 font-normal">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-border text-primary focus:ring-ring"
+                    checked={form.visibilities.occupation}
+                    onChange={(e) =>
+                      setVisibility('occupation', e.target.checked)
+                    }
+                  />
+                  職業を公開する
+                </CheckboxLabel>
+              </Label>
+
+              <Label>
+                地域
+                <Input
+                  value={form.region}
+                  onChange={(e) => setForm({ ...form, region: e.target.value })}
+                />
+                <CheckboxLabel className="mt-2 font-normal">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-border text-primary focus:ring-ring"
+                    checked={form.visibilities.region}
+                    onChange={(e) => setVisibility('region', e.target.checked)}
+                  />
+                  地域を公開する
+                </CheckboxLabel>
+              </Label>
+            </div>
           </div>
+        </Card>
 
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button onClick={updateProfile}>プロフィールを保存</Button>
-            <Button variant="secondary" onClick={() => router.push('/posts')}>
-              キャンセル
+        <Card>
+          <div className="grid gap-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">学歴</h2>
+              <p className="mt-1 text-sm text-muted">
+                複数登録できます。上から順に表示されます。
+              </p>
+            </div>
+
+            {form.educations.length === 0 && (
+              <p className="text-sm text-muted">学歴はまだ登録されていません。</p>
+            )}
+
+            {form.educations.map((education, index) => (
+              <div
+                key={education.key}
+                className="grid gap-4 rounded-lg border border-border p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    学歴 {index + 1}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="shrink-0 px-2 py-1 text-xs"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        educations: prev.educations.filter(
+                          (e) => e.key !== education.key
+                        ),
+                      }))
+                    }
+                  >
+                    削除
+                  </Button>
+                </div>
+
+                <Label>
+                  学校名
+                  <Input
+                    value={education.school_name}
+                    onChange={(e) =>
+                      updateEducation(education.key, {
+                        school_name: e.target.value,
+                      })
+                    }
+                  />
+                </Label>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Label>
+                    学部
+                    <Input
+                      value={education.faculty}
+                      onChange={(e) =>
+                        updateEducation(education.key, {
+                          faculty: e.target.value,
+                        })
+                      }
+                    />
+                  </Label>
+                  <Label>
+                    学位
+                    <Input
+                      value={education.degree}
+                      onChange={(e) =>
+                        updateEducation(education.key, {
+                          degree: e.target.value,
+                        })
+                      }
+                    />
+                  </Label>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Label>
+                    開始年
+                    <Input
+                      type="number"
+                      min={1900}
+                      max={2100}
+                      placeholder="例: 2010"
+                      value={education.start_year}
+                      onChange={(e) =>
+                        updateEducation(education.key, {
+                          start_year: e.target.value,
+                        })
+                      }
+                    />
+                  </Label>
+                  <Label>
+                    終了年
+                    <Input
+                      type="number"
+                      min={1900}
+                      max={2100}
+                      placeholder="例: 2014"
+                      value={education.end_year}
+                      onChange={(e) =>
+                        updateEducation(education.key, {
+                          end_year: e.target.value,
+                        })
+                      }
+                    />
+                  </Label>
+                </div>
+
+                <CheckboxLabel>
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-border text-primary focus:ring-ring"
+                    checked={education.is_public}
+                    onChange={(e) =>
+                      updateEducation(education.key, {
+                        is_public: e.target.checked,
+                      })
+                    }
+                  />
+                  この学歴を公開する
+                </CheckboxLabel>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  educations: [...prev.educations, emptyEducation()],
+                }))
+              }
+            >
+              学歴を追加
             </Button>
           </div>
+        </Card>
 
-          {message && (
-            <Alert message={message} variant={isError ? 'error' : 'info'} />
-          )}
+        <Card>
+          <div className="grid gap-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">職歴</h2>
+              <p className="mt-1 text-sm text-muted">
+                現職は1件のみ指定できます。上から順に表示されます。
+              </p>
+            </div>
+
+            {form.careers.length === 0 && (
+              <p className="text-sm text-muted">職歴はまだ登録されていません。</p>
+            )}
+
+            {form.careers.map((career, index) => (
+              <div
+                key={career.key}
+                className="grid gap-4 rounded-lg border border-border p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    職歴 {index + 1}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="shrink-0 px-2 py-1 text-xs"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        careers: prev.careers.filter(
+                          (c) => c.key !== career.key
+                        ),
+                      }))
+                    }
+                  >
+                    削除
+                  </Button>
+                </div>
+
+                <Label>
+                  会社名
+                  <Input
+                    value={career.company_name}
+                    onChange={(e) =>
+                      updateCareer(career.key, {
+                        company_name: e.target.value,
+                      })
+                    }
+                  />
+                </Label>
+
+                <Label>
+                  役職
+                  <Input
+                    value={career.position}
+                    onChange={(e) =>
+                      updateCareer(career.key, { position: e.target.value })
+                    }
+                  />
+                </Label>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Label>
+                    開始年
+                    <Input
+                      type="number"
+                      min={1900}
+                      max={2100}
+                      placeholder="例: 2018"
+                      value={career.start_year}
+                      onChange={(e) =>
+                        updateCareer(career.key, {
+                          start_year: e.target.value,
+                        })
+                      }
+                    />
+                  </Label>
+                  <Label>
+                    終了年
+                    <Input
+                      type="number"
+                      min={1900}
+                      max={2100}
+                      placeholder="例: 2024"
+                      value={career.end_year}
+                      disabled={career.is_current}
+                      onChange={(e) =>
+                        updateCareer(career.key, { end_year: e.target.value })
+                      }
+                    />
+                  </Label>
+                </div>
+
+                <div className="grid gap-3">
+                  <CheckboxLabel>
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-border text-primary focus:ring-ring"
+                      checked={career.is_current}
+                      onChange={(e) =>
+                        updateCareer(career.key, {
+                          is_current: e.target.checked,
+                        })
+                      }
+                    />
+                    現職
+                  </CheckboxLabel>
+                  <CheckboxLabel>
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-border text-primary focus:ring-ring"
+                      checked={career.is_public}
+                      onChange={(e) =>
+                        updateCareer(career.key, { is_public: e.target.checked })
+                      }
+                    />
+                    この職歴を公開する
+                  </CheckboxLabel>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  careers: [...prev.careers, emptyCareer()],
+                }))
+              }
+            >
+              職歴を追加
+            </Button>
+          </div>
+        </Card>
+
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={updateProfile}>プロフィールを保存</Button>
+          <Button variant="secondary" onClick={() => router.push('/posts')}>
+            キャンセル
+          </Button>
         </div>
-      </Card>
+
+        {message && (
+          <Alert message={message} variant={isError ? 'error' : 'info'} />
+        )}
+      </div>
     </PageShell>
   );
 }

@@ -9,6 +9,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Profile;
+use App\Models\ProfileVisibility;
 
 Route::post('/register', function (Request $request) {
     $validated = $request->validate([
@@ -27,13 +28,15 @@ Route::post('/register', function (Request $request) {
         'birthdate' => $validated['birthdate'],
     ]);
 
-    Profile::create([
-        'user_id' => $user->id,
-        'display_last_name' => $user->last_name,
-        'display_first_name' => $user->first_name,
-        'age_public' => true,
-        'full_name_public' => false,
-    ]);
+    Profile::create(['user_id' => $user->id]);
+
+    foreach (ProfileVisibility::defaultMap() as $fieldName => $isPublic) {
+        ProfileVisibility::create([
+            'user_id' => $user->id,
+            'field_name' => $fieldName,
+            'is_public' => $isPublic,
+        ]);
+    }
 
     return response()->json([
         'message' => 'ユーザー登録が完了しました。',
