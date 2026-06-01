@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
+import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { type PostAuthor } from '@/lib/post-author';
 
 type Post = {
   id: number;
@@ -15,11 +17,7 @@ type Post = {
   bookmark_count: number;
   published_at: string | null;
 
-  user: {
-    id: number;
-    last_name: string;
-    first_name: string;
-  };
+  user: PostAuthor;
 
   category: {
     id: number;
@@ -108,18 +106,18 @@ export default function PostsPage() {
         )}
 
         {posts.map((post) => (
-          <Link key={post.id} href={`/posts/${post.id}`}>
-            <Card className="transition-colors hover:border-primary/30">
-              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
-                  {post.category.name}
-                </span>
-                <span className="text-muted">
-                  {post.user.last_name}
-                  {post.user.first_name}
-                </span>
-              </div>
+          <Card
+            key={post.id}
+            className="transition-colors hover:border-primary/30"
+          >
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
+                {post.category.name}
+              </span>
+              <AuthorLink user={post.user} />
+            </div>
 
+            <Link href={`/posts/${post.id}`}>
               <h2 className="text-lg font-semibold text-foreground">
                 {post.title}
               </h2>
@@ -128,8 +126,8 @@ export default function PostsPage() {
                 <span>閲覧 {post.view_count}</span>
                 <span>付箋 {post.bookmark_count}</span>
               </div>
-            </Card>
-          </Link>
+            </Link>
+          </Card>
         ))}
       </div>
     </PageShell>

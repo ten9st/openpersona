@@ -19,7 +19,7 @@ return new class extends Migration
 
             $table->text('biography')->nullable()->comment('自己紹介');
             $table->string('occupation')->nullable()->comment('職業');
-            $table->string('region')->nullable()->comment('地域');
+            $table->string('region')->nullable()->comment('都道府県（例: 東京都）');
 
             $table->timestamps();
         });

@@ -31,8 +31,12 @@ class ProfileTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('user.last_name', $user->last_name)
             ->assertJsonPath('user.first_name', $user->first_name)
-            ->assertJsonPath('visibilities.age', true)
-            ->assertJsonPath('visibilities.full_name', false)
+            ->assertJsonPath('visibilities.first_name', false)
+            ->assertJsonPath('visibilities.biography', false)
+            ->assertJsonPath('visibilities.occupation', false)
+            ->assertJsonMissingPath('visibilities.last_name')
+            ->assertJsonMissingPath('visibilities.age')
+            ->assertJsonMissingPath('visibilities.region')
             ->assertJsonPath('educations', [])
             ->assertJsonPath('careers', []);
 
@@ -42,8 +46,13 @@ class ProfileTest extends TestCase
 
         $this->assertDatabaseHas('profile_visibilities', [
             'user_id' => $user->id,
+            'field_name' => 'first_name',
+            'is_public' => 0,
+        ]);
+
+        $this->assertDatabaseMissing('profile_visibilities', [
+            'user_id' => $user->id,
             'field_name' => 'last_name',
-            'is_public' => 1,
         ]);
     }
 
@@ -74,15 +83,11 @@ class ProfileTest extends TestCase
             'birthdate' => '1995-06-15',
             'biography' => '自己紹介です。',
             'occupation' => 'エンジニア',
-            'region' => '東京',
+            'region' => '東京都',
             'visibilities' => [
-                'last_name' => true,
                 'first_name' => true,
-                'full_name' => true,
-                'age' => false,
                 'biography' => true,
                 'occupation' => true,
-                'region' => false,
             ],
             'educations' => [
                 [
@@ -120,7 +125,8 @@ class ProfileTest extends TestCase
             ->assertJsonPath('message', 'プロフィールを更新しました。')
             ->assertJsonPath('user.last_name', '公開')
             ->assertJsonPath('profile.biography', '自己紹介です。')
-            ->assertJsonPath('visibilities.age', false)
+            ->assertJsonPath('profile.region', '東京都')
+            ->assertJsonPath('visibilities.first_name', true)
             ->assertJsonPath('educations.0.school_name', '東京大学')
             ->assertJsonPath('careers.1.is_current', true)
             ->assertJsonPath('careers.1.end_year', null);
@@ -133,6 +139,13 @@ class ProfileTest extends TestCase
         $this->assertDatabaseHas('profiles', [
             'user_id' => $user->id,
             'occupation' => 'エンジニア',
+            'region' => '東京都',
+        ]);
+
+        $this->assertDatabaseHas('profile_visibilities', [
+            'user_id' => $user->id,
+            'field_name' => 'first_name',
+            'is_public' => 1,
         ]);
 
         $this->assertDatabaseHas('user_educations', [
@@ -156,5 +169,91 @@ class ProfileTest extends TestCase
 
         $this->assertSame(1, UserEducation::where('user_id', $user->id)->count());
         $this->assertSame(2, UserCareer::where('user_id', $user->id)->count());
+    }
+
+    public function test_user_cannot_set_invalid_prefecture(): void
+    {
+        $user = User::factory()->create();
+        Profile::create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/profile', [
+            'last_name' => $user->last_name,
+            'first_name' => $user->first_name,
+            'birthdate' => $user->birthdate->format('Y-m-d'),
+            'region' => '東京',
+            'visibilities' => ProfileVisibility::defaultMap(),
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['region']);
+    }
+
+    public function test_user_cannot_update_profile_with_invalid_basic_info(): void
+    {
+        $user = User::factory()->create();
+        Profile::create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user);
+
+        $basePayload = [
+            'biography' => null,
+            'occupation' => null,
+            'visibilities' => ProfileVisibility::defaultMap(),
+            'educations' => [],
+            'careers' => [],
+        ];
+
+        $this->putJson('/api/profile', [
+            ...$basePayload,
+            'last_name' => '',
+            'first_name' => '太郎',
+            'birthdate' => '1995-06-15',
+            'region' => '東京都',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['last_name']);
+
+        $this->putJson('/api/profile', [
+            ...$basePayload,
+            'last_name' => '山田123',
+            'first_name' => '太郎',
+            'birthdate' => '1995-06-15',
+            'region' => '東京都',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['last_name']);
+
+        $this->putJson('/api/profile', [
+            ...$basePayload,
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => now()->addDay()->format('Y-m-d'),
+            'region' => '東京都',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['birthdate']);
+
+        $this->putJson('/api/profile', [
+            ...$basePayload,
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => now()->subYears(10)->format('Y-m-d'),
+            'region' => '東京都',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['birthdate']);
+
+        $this->putJson('/api/profile', [
+            ...$basePayload,
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => '1995-06-15',
+            'region' => '',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['region']);
     }
 }

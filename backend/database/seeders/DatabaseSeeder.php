@@ -13,20 +13,16 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * 公開設定のデフォルト（旧 profiles の初期値に相当）
+     * 公開設定のデフォルト
      *
      * @return array<string, bool>
      */
     private function defaultProfileVisibilities(): array
     {
         return [
-            'last_name' => true,
             'first_name' => false,
-            'full_name' => false,
-            'age' => true,
             'biography' => false,
             'occupation' => false,
-            'region' => false,
         ];
     }
 
@@ -63,7 +59,7 @@ class DatabaseSeeder extends Seeder
             'user_id' => $user->id,
             'biography' => null,
             'occupation' => null,
-            'region' => null,
+            'region' => '東京都',
             'created_at' => $now,
             'updated_at' => $now,
         ]);

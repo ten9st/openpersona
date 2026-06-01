@@ -7,6 +7,7 @@ use App\Models\ProfileVisibility;
 use App\Models\User;
 use App\Models\UserCareer;
 use App\Models\UserEducation;
+use App\Support\UserBasicInfoRules;
 use Illuminate\Http\Request;
 
 class ProfileController extends Controller
@@ -23,18 +24,17 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        $request->merge(UserBasicInfoRules::trimInput($request->all()));
+
         $visibilityRules = [];
         foreach (ProfileVisibility::FIELDS as $field) {
             $visibilityRules["visibilities.{$field}"] = ['required', 'boolean'];
         }
 
         $validated = $request->validate([
-            'last_name' => ['required', 'string', 'max:255'],
-            'first_name' => ['required', 'string', 'max:255'],
-            'birthdate' => ['required', 'date'],
+            ...UserBasicInfoRules::profileRules(),
             'biography' => ['nullable', 'string'],
             'occupation' => ['nullable', 'string', 'max:255'],
-            'region' => ['nullable', 'string', 'max:255'],
             'visibilities' => ['required', 'array'],
             'educations' => ['present', 'array'],
             'educations.*.school_name' => ['required', 'string', 'max:255'],
@@ -51,7 +51,7 @@ class ProfileController extends Controller
             'careers.*.is_current' => ['required', 'boolean'],
             'careers.*.is_public' => ['required', 'boolean'],
             ...$visibilityRules,
-        ]);
+        ], UserBasicInfoRules::messages());
 
         $user->update([
             'last_name' => $validated['last_name'],
@@ -69,6 +69,10 @@ class ProfileController extends Controller
         );
 
         foreach ($validated['visibilities'] as $fieldName => $isPublic) {
+            if (! in_array($fieldName, ProfileVisibility::FIELDS, true)) {
+                continue;
+            }
+
             ProfileVisibility::updateOrCreate(
                 [
                     'user_id' => $user->id,
@@ -195,6 +199,10 @@ class ProfileController extends Controller
                 ['is_public' => $isPublic]
             );
         }
+
+        ProfileVisibility::where('user_id', $user->id)
+            ->whereNotIn('field_name', ProfileVisibility::FIELDS)
+            ->delete();
     }
 
     /**
