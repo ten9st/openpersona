@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Profile;
+use App\Models\ProfileVisibility;
 use App\Models\User;
+use App\Models\UserCareer;
+use App\Models\UserEducation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -26,52 +29,132 @@ class ProfileTest extends TestCase
         $response = $this->getJson('/api/profile');
 
         $response->assertOk()
-            ->assertJsonPath('profile.user_id', $user->id)
-            ->assertJsonPath('profile.display_last_name', $user->last_name)
-            ->assertJsonPath('profile.display_first_name', $user->first_name);
+            ->assertJsonPath('user.last_name', $user->last_name)
+            ->assertJsonPath('user.first_name', $user->first_name)
+            ->assertJsonPath('visibilities.age', true)
+            ->assertJsonPath('visibilities.full_name', false)
+            ->assertJsonPath('educations', [])
+            ->assertJsonPath('careers', []);
 
         $this->assertDatabaseHas('profiles', [
             'user_id' => $user->id,
         ]);
+
+        $this->assertDatabaseHas('profile_visibilities', [
+            'user_id' => $user->id,
+            'field_name' => 'last_name',
+            'is_public' => 1,
+        ]);
     }
 
-    public function test_user_can_update_profile(): void
+    public function test_user_can_update_profile_with_educations_and_careers(): void
     {
         $user = User::factory()->create();
-        Profile::create([
+        Profile::create(['user_id' => $user->id]);
+
+        foreach (ProfileVisibility::defaultMap() as $fieldName => $isPublic) {
+            ProfileVisibility::create([
+                'user_id' => $user->id,
+                'field_name' => $fieldName,
+                'is_public' => $isPublic,
+            ]);
+        }
+
+        UserEducation::create([
             'user_id' => $user->id,
-            'display_last_name' => $user->last_name,
-            'display_first_name' => $user->first_name,
-            'age_public' => true,
-            'full_name_public' => false,
+            'school_name' => '旧大学',
+            'sort_order' => 0,
         ]);
 
         Sanctum::actingAs($user);
 
         $payload = [
-            'display_last_name' => '公開',
-            'display_first_name' => '太郎',
-            'age_public' => false,
-            'full_name_public' => true,
+            'last_name' => '公開',
+            'first_name' => '太郎',
+            'birthdate' => '1995-06-15',
             'biography' => '自己紹介です。',
             'occupation' => 'エンジニア',
-            'occupation_public' => true,
             'region' => '東京',
-            'region_public' => false,
+            'visibilities' => [
+                'last_name' => true,
+                'first_name' => true,
+                'full_name' => true,
+                'age' => false,
+                'biography' => true,
+                'occupation' => true,
+                'region' => false,
+            ],
+            'educations' => [
+                [
+                    'school_name' => '東京大学',
+                    'faculty' => '工学部',
+                    'degree' => '学士',
+                    'start_year' => 2010,
+                    'end_year' => 2014,
+                    'is_public' => true,
+                ],
+            ],
+            'careers' => [
+                [
+                    'company_name' => 'A社',
+                    'position' => 'エンジニア',
+                    'start_year' => 2015,
+                    'end_year' => 2019,
+                    'is_current' => false,
+                    'is_public' => true,
+                ],
+                [
+                    'company_name' => 'B社',
+                    'position' => 'シニアエンジニア',
+                    'start_year' => 2020,
+                    'end_year' => null,
+                    'is_current' => true,
+                    'is_public' => false,
+                ],
+            ],
         ];
 
         $response = $this->putJson('/api/profile', $payload);
 
         $response->assertOk()
             ->assertJsonPath('message', 'プロフィールを更新しました。')
-            ->assertJsonPath('profile.display_last_name', '公開')
-            ->assertJsonPath('profile.biography', '自己紹介です。');
+            ->assertJsonPath('user.last_name', '公開')
+            ->assertJsonPath('profile.biography', '自己紹介です。')
+            ->assertJsonPath('visibilities.age', false)
+            ->assertJsonPath('educations.0.school_name', '東京大学')
+            ->assertJsonPath('careers.1.is_current', true)
+            ->assertJsonPath('careers.1.end_year', null);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'last_name' => '公開',
+        ]);
 
         $this->assertDatabaseHas('profiles', [
             'user_id' => $user->id,
-            'display_last_name' => '公開',
             'occupation' => 'エンジニア',
-            'age_public' => 0,
         ]);
+
+        $this->assertDatabaseHas('user_educations', [
+            'user_id' => $user->id,
+            'school_name' => '東京大学',
+            'sort_order' => 0,
+        ]);
+
+        $this->assertDatabaseMissing('user_educations', [
+            'user_id' => $user->id,
+            'school_name' => '旧大学',
+        ]);
+
+        $this->assertDatabaseHas('user_careers', [
+            'user_id' => $user->id,
+            'company_name' => 'B社',
+            'is_current' => 1,
+            'end_year' => null,
+            'sort_order' => 1,
+        ]);
+
+        $this->assertSame(1, UserEducation::where('user_id', $user->id)->count());
+        $this->assertSame(2, UserCareer::where('user_id', $user->id)->count());
     }
 }
