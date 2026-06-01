@@ -117,15 +117,38 @@ class PostController extends Controller
         ]);
     }
 
+    public function drafts(Request $request)
+    {
+        $posts = Post::query()
+            ->select([
+                'id',
+                'category_id',
+                'title',
+                'status',
+                'created_at',
+                'updated_at',
+            ])
+            ->with('category:id,name,slug')
+            ->where('user_id', $request->user()->id)
+            ->where('status', 'draft')
+            ->latest('updated_at')
+            ->get();
+
+        return response()->json([
+            'posts' => $posts,
+        ]);
+    }
+
     public function show(Request $request, Post $post)
     {
-        if ($post->status !== 'published') {
+        $accessToken = $this->resolveAccessToken($request);
+
+        if ($post->status !== 'published' && ! $this->isPostAuthor($post, $accessToken)) {
             abort(404);
         }
 
-        $accessToken = $this->resolveAccessToken($request);
-
-        if (! $this->hasViewedPost($request, $post, $accessToken)
+        if ($post->status === 'published'
+            && ! $this->hasViewedPost($request, $post, $accessToken)
             && ! $this->isPostAuthor($post, $accessToken)) {
             $post->increment('view_count');
             $this->recordPostView($request, $post, $accessToken);
@@ -166,8 +189,46 @@ class PostController extends Controller
         ]);
 
         return response()->json([
-            'message' => '投稿を作成しました。',
+            'message' => $status === 'published'
+                ? '投稿を公開しました。'
+                : '下書きを保存しました。',
             'post' => $post,
         ], 201);
+    }
+
+    public function update(Request $request, Post $post)
+    {
+        if ((int) $post->user_id !== (int) $request->user()->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'category_id' => ['sometimes', 'required', 'exists:categories,id'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'body' => ['sometimes', 'required', 'string'],
+            'status' => ['nullable', 'in:draft,published'],
+        ]);
+
+        $status = $validated['status'] ?? $post->status;
+        $publishedAt = $post->published_at;
+
+        if ($status === 'published' && $publishedAt === null) {
+            $publishedAt = Carbon::now();
+        } elseif ($status === 'draft') {
+            $publishedAt = null;
+        }
+
+        $post->update([
+            ...array_intersect_key($validated, array_flip(['category_id', 'title', 'body'])),
+            'status' => $status,
+            'published_at' => $publishedAt,
+        ]);
+
+        return response()->json([
+            'message' => $status === 'published'
+                ? '投稿を公開しました。'
+                : '下書きを保存しました。',
+            'post' => $post->fresh(),
+        ]);
     }
 }

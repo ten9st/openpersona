@@ -78,8 +78,10 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 });
 
 Route::get('/posts', [PostController::class, 'index']);
+Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
 Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
+Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
 Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
