@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Post;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -36,7 +37,11 @@ class PostTest extends TestCase
 
     public function test_guest_can_list_published_posts(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create([
+            'user_id' => $user->id,
+            'region' => '東京都',
+        ]);
         $category = $this->createCategory();
         $this->createPublishedPost($user, $category);
 
@@ -44,12 +49,18 @@ class PostTest extends TestCase
 
         $response->assertOk()
             ->assertJsonCount(1, 'posts')
-            ->assertJsonPath('posts.0.title', '公開投稿');
+            ->assertJsonPath('posts.0.title', '公開投稿')
+            ->assertJsonPath('posts.0.user.region', '東京都')
+            ->assertJsonPath('posts.0.user.age', $user->birthdate->age);
     }
 
     public function test_guest_can_view_published_post(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create([
+            'user_id' => $user->id,
+            'region' => '東京都',
+        ]);
         $category = $this->createCategory();
         $post = $this->createPublishedPost($user, $category);
 
@@ -57,7 +68,11 @@ class PostTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('post.title', '公開投稿')
-            ->assertJsonPath('post.body', '本文です。');
+            ->assertJsonPath('post.body', '本文です。')
+            ->assertJsonPath('post.user.last_name', $user->last_name)
+            ->assertJsonPath('post.user.first_name', null)
+            ->assertJsonPath('post.user.region', '東京都')
+            ->assertJsonPath('post.user.age', $user->birthdate->age);
 
         $this->assertSame(1, $post->fresh()->view_count);
     }

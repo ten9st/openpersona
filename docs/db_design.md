@@ -1,11 +1,21 @@
 ## テーブル仕様
 
+### 投稿一覧に表示するプロフィール情報
+
+| 項目 | データソース | 表示ルール |
+|------|-------------|-----------|
+| 氏名（姓・名） | users.last_name / users.first_name | 姓は常に表示。名は profile_visibilities で制御 |
+| 地域（都道府県） | profiles.region | 常に表示 |
+| 年齢 | users.birthdate から計算 | 常に表示 |
+| 信頼スコア | trust_scores.total_score | 常に表示 |
+
 1.users
 認証の本体
 
 ポイント
 ・本名は必須入力
-・公開は別テーブルで制御
+・姓・年齢は常に表示（profile_visibilities の対象外）
+・名の公開は profile_visibilities で制御
 ・認証系の中心
 
 users
@@ -23,6 +33,7 @@ users
 
 ポイント
 ・公開制御は profile_visibilities テーブルで一元管理
+・地域（都道府県）は投稿一覧で常に表示（公開フラグの対象外）
 ・項目が増えてもテーブル構造を変えずに対応できる
 
 profiles
@@ -30,7 +41,7 @@ profiles
 - user_id
 - biography
 - occupation
-- region
+- region（都道府県名。例: 東京都）
 - created_at
 - updated_at
 
@@ -41,6 +52,8 @@ profiles
 ・field_name で対象フィールドを指定
 ・is_public で公開/非公開を管理
 ・項目追加時もテーブル構造を変更不要
+・姓・年齢・地域は常に表示のため対象外
+・first_name / biography / occupation のみ管理
 
 profile_visibilities
 - id
@@ -51,13 +64,9 @@ profile_visibilities
 - updated_at
 
 field_name の例
-last_name
 first_name
-full_name
-age
 biography
 occupation
-region
 
 4.user_educations
 学歴

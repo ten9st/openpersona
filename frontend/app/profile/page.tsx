@@ -8,15 +8,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckboxLabel, Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
+import { isPrefecture, PREFECTURES } from '@/lib/prefectures';
+import {
+  birthdateInputBounds,
+  NAME_MAX,
+  parseApiFieldErrors,
+  trimBasicInfo,
+  validateUserBasicInfo,
+  type BasicInfoErrors,
+} from '@/lib/validation/user-basic-info';
 
 type ProfileVisibilities = {
-  last_name: boolean;
   first_name: boolean;
-  full_name: boolean;
-  age: boolean;
   biography: boolean;
   occupation: boolean;
-  region: boolean;
 };
 
 type EducationForm = {
@@ -52,13 +58,9 @@ type ProfileForm = {
 };
 
 const defaultVisibilities = (): ProfileVisibilities => ({
-  last_name: true,
   first_name: false,
-  full_name: false,
-  age: true,
   biography: false,
   occupation: false,
-  region: false,
 });
 
 const newKey = () => crypto.randomUUID();
@@ -96,6 +98,13 @@ const defaultForm = (): ProfileForm => ({
 });
 
 const API_BASE = 'http://localhost:8000/api';
+
+const birthdateBounds = birthdateInputBounds();
+
+const FieldError = ({ message }: { message?: string }) =>
+  message ? (
+    <span className="text-xs font-normal text-destructive">{message}</span>
+  ) : null;
 
 const parseYear = (value: string): number | null => {
   const trimmed = value.trim();
@@ -143,10 +152,20 @@ const mapCareerFromApi = (item: {
 export default function ProfilePage() {
   const router = useRouter();
   const [form, setForm] = useState<ProfileForm>(defaultForm);
+  const [basicInfoErrors, setBasicInfoErrors] = useState<BasicInfoErrors>({});
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
   const getToken = () => localStorage.getItem('openpersona_token');
+
+  const clearBasicInfoError = (field: keyof BasicInfoErrors) => {
+    setBasicInfoErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   const setVisibility = (
     field: keyof ProfileVisibilities,
@@ -220,7 +239,9 @@ export default function ProfilePage() {
       birthdate: data.user.birthdate ?? '',
       biography: data.profile.biography ?? '',
       occupation: data.profile.occupation ?? '',
-      region: data.profile.region ?? '',
+      region: isPrefecture(data.profile.region ?? '')
+        ? data.profile.region
+        : '',
       visibilities: { ...defaultVisibilities(), ...data.visibilities },
       educations: (data.educations ?? []).map(mapEducationFromApi),
       careers: (data.careers ?? []).map(mapCareerFromApi),
@@ -234,6 +255,26 @@ export default function ProfilePage() {
       return;
     }
 
+    const trimmedBasicInfo = trimBasicInfo({
+      last_name: form.last_name,
+      first_name: form.first_name,
+      birthdate: form.birthdate,
+      region: form.region,
+    });
+
+    const validationErrors = validateUserBasicInfo(trimmedBasicInfo, {
+      requireRegion: true,
+    });
+
+    if (Object.keys(validationErrors).length > 0) {
+      setBasicInfoErrors(validationErrors);
+      setMessage('基本情報に入力エラーがあります。');
+      setIsError(true);
+      return;
+    }
+
+    setBasicInfoErrors({});
+
     const res = await fetch(`${API_BASE}/profile`, {
       method: 'PUT',
       headers: {
@@ -242,12 +283,12 @@ export default function ProfilePage() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        last_name: form.last_name,
-        first_name: form.first_name,
-        birthdate: form.birthdate,
+        last_name: trimmedBasicInfo.last_name,
+        first_name: trimmedBasicInfo.first_name,
+        birthdate: trimmedBasicInfo.birthdate,
         biography: form.biography || null,
         occupation: form.occupation || null,
-        region: form.region || null,
+        region: trimmedBasicInfo.region,
         visibilities: form.visibilities,
         educations: form.educations
           .filter((e) => e.school_name.trim())
@@ -276,7 +317,13 @@ export default function ProfilePage() {
 
     if (!res.ok) {
       console.log(data);
-      setMessage('プロフィール更新に失敗しました。');
+      setBasicInfoErrors(parseApiFieldErrors(data.errors));
+      setMessage(
+        data.message ??
+          (data.errors
+            ? '基本情報に入力エラーがあります。'
+            : 'プロフィール更新に失敗しました。')
+      );
       setIsError(true);
       return;
     }
@@ -302,7 +349,7 @@ export default function ProfilePage() {
           <div className="grid gap-6">
             <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
             <p className="-mt-4 text-sm text-muted">
-              登録時に入力した本名・生年月日を編集できます。公開する項目は下のチェックで選べます。
+              姓・年齢・都道府県は投稿一覧で常に表示されます。名の公開は下のチェックで設定できます。
             </p>
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -310,79 +357,82 @@ export default function ProfilePage() {
                 姓
                 <Input
                   value={form.last_name}
-                  onChange={(e) =>
-                    setForm({ ...form, last_name: e.target.value })
-                  }
+                  maxLength={NAME_MAX}
+                  onChange={(e) => {
+                    clearBasicInfoError('last_name');
+                    setForm({ ...form, last_name: e.target.value });
+                  }}
                 />
+                <FieldError message={basicInfoErrors.last_name} />
+                <span className="mt-1 text-xs font-normal text-muted">
+                  投稿一覧に常に表示
+                </span>
               </Label>
 
               <Label>
                 名
                 <Input
                   value={form.first_name}
-                  onChange={(e) =>
-                    setForm({ ...form, first_name: e.target.value })
-                  }
+                  maxLength={NAME_MAX}
+                  onChange={(e) => {
+                    clearBasicInfoError('first_name');
+                    setForm({ ...form, first_name: e.target.value });
+                  }}
                 />
+                <FieldError message={basicInfoErrors.first_name} />
+                <CheckboxLabel className="mt-2 font-normal">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-border text-primary focus:ring-ring"
+                    checked={form.visibilities.first_name}
+                    onChange={(e) =>
+                      setVisibility('first_name', e.target.checked)
+                    }
+                  />
+                  名を公開する
+                </CheckboxLabel>
               </Label>
             </div>
+
+            <Label>
+              都道府県
+              <Select
+                value={form.region}
+                onChange={(e) => {
+                  clearBasicInfoError('region');
+                  setForm({ ...form, region: e.target.value });
+                }}
+              >
+                <option value="">未選択</option>
+                {PREFECTURES.map((prefecture) => (
+                  <option key={prefecture} value={prefecture}>
+                    {prefecture}
+                  </option>
+                ))}
+              </Select>
+              <FieldError message={basicInfoErrors.region} />
+              <span className="mt-1 text-xs font-normal text-muted">
+                投稿一覧に常に表示
+              </span>
+            </Label>
 
             <Label>
               生年月日
               <Input
                 type="date"
                 value={form.birthdate}
-                onChange={(e) =>
-                  setForm({ ...form, birthdate: e.target.value })
-                }
+                min={birthdateBounds.min}
+                max={birthdateBounds.max}
+                onChange={(e) => {
+                  clearBasicInfoError('birthdate');
+                  setForm({ ...form, birthdate: e.target.value });
+                }}
               />
+              <FieldError message={basicInfoErrors.birthdate} />
+              <span className="mt-1 text-xs font-normal text-muted">
+                投稿一覧に常に表示（13歳以上120歳以下）
+              </span>
             </Label>
-
-            <fieldset className="grid gap-3 rounded-lg border border-border p-4">
-              <legend className="px-1 text-sm font-medium text-foreground">
-                公開設定
-              </legend>
-              <CheckboxLabel>
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-border text-primary focus:ring-ring"
-                  checked={form.visibilities.last_name}
-                  onChange={(e) => setVisibility('last_name', e.target.checked)}
-                />
-                姓を公開する
-              </CheckboxLabel>
-              <CheckboxLabel>
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-border text-primary focus:ring-ring"
-                  checked={form.visibilities.first_name}
-                  onChange={(e) =>
-                    setVisibility('first_name', e.target.checked)
-                  }
-                />
-                名を公開する
-              </CheckboxLabel>
-              <CheckboxLabel>
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-border text-primary focus:ring-ring"
-                  checked={form.visibilities.full_name}
-                  onChange={(e) =>
-                    setVisibility('full_name', e.target.checked)
-                  }
-                />
-                氏名（姓名）をまとめて公開する
-              </CheckboxLabel>
-              <CheckboxLabel>
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-border text-primary focus:ring-ring"
-                  checked={form.visibilities.age}
-                  onChange={(e) => setVisibility('age', e.target.checked)}
-                />
-                年齢を公開する
-              </CheckboxLabel>
-            </fieldset>
           </div>
         </Card>
 
@@ -433,23 +483,6 @@ export default function ProfilePage() {
                     }
                   />
                   職業を公開する
-                </CheckboxLabel>
-              </Label>
-
-              <Label>
-                地域
-                <Input
-                  value={form.region}
-                  onChange={(e) => setForm({ ...form, region: e.target.value })}
-                />
-                <CheckboxLabel className="mt-2 font-normal">
-                  <input
-                    type="checkbox"
-                    className="size-4 rounded border-border text-primary focus:ring-ring"
-                    checked={form.visibilities.region}
-                    onChange={(e) => setVisibility('region', e.target.checked)}
-                  />
-                  地域を公開する
                 </CheckboxLabel>
               </Label>
             </div>

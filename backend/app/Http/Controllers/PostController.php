@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Post;
 use App\Models\PostViewRecord;
 use App\Models\User;
+use App\Support\PublicProfilePresenter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -94,7 +95,11 @@ class PostController extends Controller
                 'updated_at',
             ])
             ->with([
-                'user:id,last_name,first_name',
+                'user:id,last_name,first_name,birthdate',
+                'user.profile:id,user_id,region',
+                'user.profileVisibilities' => fn ($query) => $query
+                    ->select(['id', 'user_id', 'field_name', 'is_public'])
+                    ->where('field_name', 'first_name'),
                 'category:id,name,slug',
             ])
             ->where('status', 'published')
@@ -106,8 +111,15 @@ class PostController extends Controller
 
         $posts = $query->paginate($perPage);
 
+        $items = collect($posts->items())->map(function (Post $post) {
+            $postArray = $post->toArray();
+            $postArray['user'] = $this->formatAuthorForList($post->user);
+
+            return $postArray;
+        })->all();
+
         return response()->json([
-            'posts' => $posts->items(),
+            'posts' => $items,
             'meta' => [
                 'current_page' => $posts->currentPage(),
                 'last_page' => $posts->lastPage(),
@@ -155,7 +167,11 @@ class PostController extends Controller
         }
 
         $post->load([
-            'user:id,last_name,first_name',
+            'user:id,last_name,first_name,birthdate',
+            'user.profile:id,user_id,region',
+            'user.profileVisibilities' => fn ($query) => $query
+                ->select(['id', 'user_id', 'field_name', 'is_public'])
+                ->where('field_name', 'first_name'),
             'category:id,name,slug',
             'comments' => fn ($query) => $query
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
@@ -163,8 +179,11 @@ class PostController extends Controller
                 ->oldest(),
         ]);
 
+        $postArray = $post->toArray();
+        $postArray['user'] = $this->formatAuthorForList($post->user);
+
         return response()->json([
-            'post' => $post,
+            'post' => $postArray,
         ]);
     }
 
@@ -230,5 +249,13 @@ class PostController extends Controller
                 : '下書きを保存しました。',
             'post' => $post->fresh(),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatAuthorForList(User $user): array
+    {
+        return PublicProfilePresenter::summary($user);
     }
 }
