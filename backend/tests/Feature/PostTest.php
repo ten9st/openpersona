@@ -192,7 +192,7 @@ class PostTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('message', '投稿を作成しました。')
+            ->assertJsonPath('message', '投稿を公開しました。')
             ->assertJsonPath('post.title', '新規投稿');
 
         $this->assertDatabaseHas('posts', [
@@ -200,5 +200,145 @@ class PostTest extends TestCase
             'title' => '新規投稿',
             'status' => 'published',
         ]);
+    }
+
+    public function test_authenticated_user_can_create_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '下書き投稿',
+            'body' => '本文',
+            'status' => 'draft',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('message', '下書きを保存しました。')
+            ->assertJsonPath('post.status', 'draft');
+
+        $this->assertDatabaseHas('posts', [
+            'user_id' => $user->id,
+            'title' => '下書き投稿',
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+    }
+
+    public function test_authenticated_user_can_list_own_drafts(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $category = $this->createCategory();
+
+        Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '自分の下書き',
+            'body' => '本文',
+            'status' => 'draft',
+        ]);
+
+        Post::create([
+            'user_id' => $otherUser->id,
+            'category_id' => $category->id,
+            'title' => '他人の下書き',
+            'body' => '本文',
+            'status' => 'draft',
+        ]);
+
+        $this->createPublishedPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/posts/drafts')
+            ->assertOk()
+            ->assertJsonCount(1, 'posts')
+            ->assertJsonPath('posts.0.title', '自分の下書き');
+    }
+
+    public function test_guest_cannot_list_drafts(): void
+    {
+        $this->getJson('/api/posts/drafts')->assertUnauthorized();
+    }
+
+    public function test_author_can_view_own_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])
+            ->assertOk()
+            ->assertJsonPath('post.title', '下書き')
+            ->assertJsonPath('post.body', '非公開です。');
+
+        $this->assertSame(0, $post->fresh()->view_count);
+    }
+
+    public function test_author_can_update_draft_and_publish(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '旧本文',
+            'status' => 'draft',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/posts/{$post->id}", [
+            'title' => '更新タイトル',
+            'body' => '新本文',
+            'status' => 'published',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', '投稿を公開しました。')
+            ->assertJsonPath('post.title', '更新タイトル')
+            ->assertJsonPath('post.status', 'published');
+
+        $post->refresh();
+
+        $this->assertSame('新本文', $post->body);
+        $this->assertNotNull($post->published_at);
+    }
+
+    public function test_user_cannot_update_other_users_post(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $author->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '本文',
+            'status' => 'draft',
+        ]);
+
+        Sanctum::actingAs($other);
+
+        $this->putJson("/api/posts/{$post->id}", [
+            'title' => '改ざん',
+        ])->assertForbidden();
     }
 }

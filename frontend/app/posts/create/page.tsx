@@ -27,7 +27,7 @@ export default function CreatePostPage() {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
-  const createPost = async () => {
+  const createPost = async (status: 'draft' | 'published') => {
     const token = localStorage.getItem('openpersona_token');
 
     if (!token) {
@@ -35,7 +35,7 @@ export default function CreatePostPage() {
       return;
     }
 
-    setMessage('投稿中...');
+    setMessage(status === 'draft' ? '下書き保存中...' : '公開中...');
     setIsError(false);
 
     const res = await fetch('http://localhost:8000/api/posts', {
@@ -49,7 +49,7 @@ export default function CreatePostPage() {
         category_id: 1,
         title,
         body,
-        status: 'published',
+        status,
       }),
     });
 
@@ -57,12 +57,12 @@ export default function CreatePostPage() {
 
     if (!res.ok) {
       console.log(data);
-      setMessage(data.message ?? '投稿に失敗しました。');
+      setMessage(data.message ?? '保存に失敗しました。');
       setIsError(true);
       return;
     }
 
-    router.push('/posts');
+    router.push(status === 'draft' ? '/posts/drafts' : '/posts');
   };
 
   return (
@@ -92,8 +92,14 @@ export default function CreatePostPage() {
           </Label>
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={createPost}>投稿する</Button>
-            <Button variant="secondary" onClick={() => router.push('/posts')}>
+            <Button onClick={() => createPost('published')}>公開する</Button>
+            <Button
+              variant="secondary"
+              onClick={() => createPost('draft')}
+            >
+              下書き保存
+            </Button>
+            <Button variant="ghost" onClick={() => router.push('/posts')}>
               キャンセル
             </Button>
           </div>

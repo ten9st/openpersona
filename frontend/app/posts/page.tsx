@@ -81,6 +81,7 @@ export default function PostsPage() {
             <NavLink href="/posts/create" variant="primary">
               投稿する
             </NavLink>
+            <NavLink href="/posts/drafts">下書き一覧</NavLink>
             <NavLink href="/profile">プロフィール編集</NavLink>
             <Button variant="ghost" onClick={logout}>
               ログアウト
