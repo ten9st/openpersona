@@ -3,55 +3,110 @@
 namespace App\Http\Controllers;
 
 use App\Models\Profile;
+use App\Models\ProfileVisibility;
 use App\Models\User;
+use App\Support\ProfileVisibilityDefaults;
 use Illuminate\Http\Request;
 
 class ProfileController extends Controller
 {
     public function show(Request $request)
     {
-        $profile = $this->findOrCreateProfile($request->user());
+        $user = $request->user();
+        $profile = $this->findOrCreateProfile($user);
+        $this->ensureVisibilities($user);
 
-        return response()->json([
-            'profile' => $profile,
-        ]);
+        return response()->json($this->profilePayload($user, $profile));
     }
 
     public function update(Request $request)
     {
+        $visibilityRules = [];
+        foreach (ProfileVisibility::FIELD_NAMES as $fieldName) {
+            $visibilityRules["visibilities.{$fieldName}"] = ['required', 'boolean'];
+        }
+
         $validated = $request->validate([
-            'display_last_name' => ['required', 'string', 'max:255'],
-            'display_first_name' => ['nullable', 'string', 'max:255'],
-            'age_public' => ['required', 'boolean'],
-            'full_name_public' => ['required', 'boolean'],
             'biography' => ['nullable', 'string'],
             'occupation' => ['nullable', 'string', 'max:255'],
-            'occupation_public' => ['required', 'boolean'],
             'region' => ['nullable', 'string', 'max:255'],
-            'region_public' => ['required', 'boolean'],
+            'visibilities' => ['required', 'array'],
+            ...$visibilityRules,
         ]);
 
+        $user = $request->user();
+
         $profile = Profile::updateOrCreate(
-            ['user_id' => $request->user()->id],
-            $validated + ['user_id' => $request->user()->id]
+            ['user_id' => $user->id],
+            [
+                'biography' => $validated['biography'] ?? null,
+                'occupation' => $validated['occupation'] ?? null,
+                'region' => $validated['region'] ?? null,
+            ]
         );
+
+        foreach ($validated['visibilities'] as $fieldName => $isPublic) {
+            ProfileVisibility::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'field_name' => $fieldName,
+                ],
+                ['is_public' => $isPublic]
+            );
+        }
 
         return response()->json([
             'message' => 'プロフィールを更新しました。',
-            'profile' => $profile,
+            ...$this->profilePayload($user, $profile->fresh()),
         ]);
     }
 
     private function findOrCreateProfile(User $user): Profile
     {
-        return Profile::firstOrCreate(
-            ['user_id' => $user->id],
-            [
-                'display_last_name' => $user->last_name,
-                'display_first_name' => $user->first_name,
-                'age_public' => true,
-                'full_name_public' => false,
-            ]
-        );
+        return Profile::firstOrCreate(['user_id' => $user->id]);
+    }
+
+    private function ensureVisibilities(User $user): void
+    {
+        $existing = $user->profileVisibilities()->pluck('field_name')->all();
+        $missing = array_diff(ProfileVisibility::FIELD_NAMES, $existing);
+
+        if ($missing === []) {
+            return;
+        }
+
+        $defaults = ProfileVisibilityDefaults::values();
+
+        foreach ($missing as $fieldName) {
+            ProfileVisibility::create([
+                'user_id' => $user->id,
+                'field_name' => $fieldName,
+                'is_public' => $defaults[$fieldName] ?? false,
+            ]);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function profilePayload(User $user, Profile $profile): array
+    {
+        $visibilities = $user->profileVisibilities()
+            ->whereIn('field_name', ProfileVisibility::FIELD_NAMES)
+            ->pluck('is_public', 'field_name');
+
+        $orderedVisibilities = [];
+        foreach (ProfileVisibility::FIELD_NAMES as $fieldName) {
+            $orderedVisibilities[$fieldName] = (bool) ($visibilities[$fieldName] ?? false);
+        }
+
+        return [
+            'profile' => $profile,
+            'visibilities' => $orderedVisibilities,
+            'user' => [
+                'last_name' => $user->last_name,
+                'first_name' => $user->first_name,
+            ],
+        ];
     }
 }

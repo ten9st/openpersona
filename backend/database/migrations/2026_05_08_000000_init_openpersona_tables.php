@@ -17,21 +17,30 @@ return new class extends Migration
                 ->cascadeOnDelete()
                 ->comment('ユーザーID');
 
-            $table->string('display_last_name')->comment('公開用の姓');
-            $table->string('display_first_name')->nullable()->comment('公開用の名');
-
-            $table->boolean('age_public')->default(true)->comment('年齢を公開するか');
-            $table->boolean('full_name_public')->default(false)->comment('氏名を公開するか');
-
             $table->text('biography')->nullable()->comment('自己紹介');
-
             $table->string('occupation')->nullable()->comment('職業');
-            $table->boolean('occupation_public')->default(false)->comment('職業公開フラグ');
-
             $table->string('region')->nullable()->comment('地域');
-            $table->boolean('region_public')->default(false)->comment('地域公開フラグ');
 
             $table->timestamps();
+
+            $table->unique('user_id');
+        });
+
+        // ===== profile_visibilities（公開フラグ） =====
+        Schema::create('profile_visibilities', function (Blueprint $table) {
+            $table->id()->comment('公開設定ID');
+
+            $table->foreignId('user_id')
+                ->constrained()
+                ->cascadeOnDelete()
+                ->comment('ユーザーID');
+
+            $table->string('field_name')->comment('対象フィールド名');
+            $table->boolean('is_public')->default(false)->comment('公開フラグ');
+
+            $table->timestamps();
+
+            $table->unique(['user_id', 'field_name']);
         });
 
         // ===== categories（カテゴリ） =====
@@ -102,7 +111,7 @@ return new class extends Migration
             $table->foreignId('post_id')->constrained()->cascadeOnDelete()
                 ->comment('投稿ID');
 
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
 
             $table->unique(['user_id', 'post_id']);
         });
@@ -121,7 +130,7 @@ return new class extends Migration
                 ->cascadeOnDelete()
                 ->comment('フォローされる側');
 
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
 
             $table->unique(['follower_user_id', 'followed_user_id']);
         });
@@ -185,7 +194,7 @@ return new class extends Migration
             $table->string('file_type')->nullable()->comment('ファイル種別');
             $table->unsignedBigInteger('file_size')->nullable()->comment('サイズ');
 
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
         });
 
         // ===== tags =====
@@ -280,6 +289,7 @@ return new class extends Migration
         Schema::dropIfExists('comments');
         Schema::dropIfExists('posts');
         Schema::dropIfExists('categories');
+        Schema::dropIfExists('profile_visibilities');
         Schema::dropIfExists('profiles');
     }
 };

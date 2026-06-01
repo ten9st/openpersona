@@ -3,31 +3,50 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-type Profile = {
-  display_last_name: string;
-  display_first_name: string | null;
-  age_public: boolean;
-  full_name_public: boolean;
+type ProfileFields = {
   biography: string | null;
   occupation: string | null;
-  occupation_public: boolean;
   region: string | null;
-  region_public: boolean;
+};
+
+type ProfileVisibilities = {
+  last_name: boolean;
+  first_name: boolean;
+  full_name: boolean;
+  age: boolean;
+  biography: boolean;
+  occupation: boolean;
+  region: boolean;
+};
+
+type ProfileUser = {
+  last_name: string;
+  first_name: string;
+};
+
+const defaultVisibilities: ProfileVisibilities = {
+  last_name: false,
+  first_name: false,
+  full_name: false,
+  age: true,
+  biography: false,
+  occupation: false,
+  region: false,
 };
 
 export default function ProfilePage() {
   const router = useRouter();
 
-  const [profile, setProfile] = useState<Profile>({
-    display_last_name: '',
-    display_first_name: '',
-    age_public: true,
-    full_name_public: false,
+  const [profile, setProfile] = useState<ProfileFields>({
     biography: '',
     occupation: '',
-    occupation_public: false,
     region: '',
-    region_public: false,
+  });
+  const [visibilities, setVisibilities] =
+    useState<ProfileVisibilities>(defaultVisibilities);
+  const [user, setUser] = useState<ProfileUser>({
+    last_name: '',
+    first_name: '',
   });
 
   const [message, setMessage] = useState('');
@@ -59,7 +78,13 @@ export default function ProfilePage() {
       return;
     }
 
-    setProfile(data.profile);
+    setProfile({
+      biography: data.profile.biography ?? '',
+      occupation: data.profile.occupation ?? '',
+      region: data.profile.region ?? '',
+    });
+    setVisibilities(data.visibilities);
+    setUser(data.user);
   };
 
   const updateProfile = async () => {
@@ -77,7 +102,12 @@ export default function ProfilePage() {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(profile),
+      body: JSON.stringify({
+        biography: profile.biography,
+        occupation: profile.occupation,
+        region: profile.region,
+        visibilities,
+      }),
     });
 
     const data = await res.json();
@@ -91,6 +121,13 @@ export default function ProfilePage() {
     setMessage(data.message);
 
     router.push('/posts');
+  };
+
+  const toggleVisibility = (field: keyof ProfileVisibilities) => {
+    setVisibilities((current) => ({
+      ...current,
+      [field]: !current[field],
+    }));
   };
 
   useEffect(() => {

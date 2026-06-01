@@ -51,4 +51,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(Profile::class);
     }
+
+    public function profileVisibilities()
+    {
+        return $this->hasMany(ProfileVisibility::class);
+    }
 }
