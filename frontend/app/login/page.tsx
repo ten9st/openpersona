@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { API_BASE, ensureCsrfCookie, getCsrfToken } from '@/lib/api';
 
 type LoginResponse = {
   message: string;
@@ -32,11 +33,17 @@ export default function LoginPage() {
     setMessage('ログイン中...');
     setIsError(false);
 
-    const res = await fetch('http://localhost:8000/api/login', {
+    await ensureCsrfCookie();
+
+    const csrfToken = getCsrfToken();
+
+    const res = await fetch(`${API_BASE}/api/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
       },
       body: JSON.stringify({
         email,

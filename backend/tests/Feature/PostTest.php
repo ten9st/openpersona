@@ -58,6 +58,96 @@ class PostTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('post.title', '公開投稿')
             ->assertJsonPath('post.body', '本文です。');
+
+        $this->assertSame(1, $post->fresh()->view_count);
+    }
+
+    public function test_show_increments_view_count_only_once_per_session(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $this->getJson("/api/posts/{$post->id}")->assertOk();
+        $this->getJson("/api/posts/{$post->id}")->assertOk();
+
+        $this->assertSame(1, $post->fresh()->view_count);
+    }
+
+    public function test_show_increments_view_count_again_after_login(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $this->getJson("/api/posts/{$post->id}")->assertOk();
+        $this->assertSame(1, $post->fresh()->view_count);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertOk();
+
+        $token = $loginResponse->json('token');
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertOk();
+
+        $this->assertSame(1, $post->fresh()->view_count);
+    }
+
+    public function test_show_does_not_increment_view_count_when_author_views_own_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertOk();
+
+        $this->assertSame(0, $post->fresh()->view_count);
+    }
+
+    public function test_show_does_not_increment_view_count_after_creating_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+        $headers = ['Authorization' => "Bearer {$token}"];
+
+        $createResponse = $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '新規投稿',
+            'body' => '本文',
+            'status' => 'published',
+        ], $headers)->assertCreated();
+
+        $postId = $createResponse->json('post.id');
+
+        $this->getJson("/api/posts/{$postId}", $headers)->assertOk();
+
+        $this->assertSame(0, Post::find($postId)->view_count);
+    }
+
+    public function test_show_does_not_increment_view_count_twice_for_same_token(): void
+    {
+        $author = User::factory()->create();
+        $viewer = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        $token = $viewer->createToken('openpersona_token')->plainTextToken;
+
+        $headers = ['Authorization' => "Bearer {$token}"];
+
+        $this->getJson("/api/posts/{$post->id}", $headers)->assertOk();
+        $this->getJson("/api/posts/{$post->id}", $headers)->assertOk();
+
+        $this->assertSame(1, $post->fresh()->view_count);
     }
 
     public function test_guest_cannot_view_draft_post(): void

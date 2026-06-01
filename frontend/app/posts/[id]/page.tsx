@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { NavLink } from '@/components/nav-links';
@@ -58,6 +58,7 @@ export default function PostDetailPage() {
   const [commentIsError, setCommentIsError] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const loadedPostId = useRef<string | string[] | undefined>(undefined);
 
   const fetchPost = useCallback(async () => {
     if (!postId) {
@@ -67,9 +68,13 @@ export default function PostDetailPage() {
     setMessage('読み込み中...');
     setIsError(false);
 
+    const token = localStorage.getItem('openpersona_token');
+
     const res = await fetch(`${API_BASE}/posts/${postId}`, {
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
 
@@ -90,8 +95,14 @@ export default function PostDetailPage() {
 
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem('openpersona_token'));
+
+    if (loadedPostId.current === postId) {
+      return;
+    }
+
+    loadedPostId.current = postId;
     fetchPost();
-  }, [fetchPost]);
+  }, [fetchPost, postId]);
 
   const submitComment = async () => {
     const token = localStorage.getItem('openpersona_token');

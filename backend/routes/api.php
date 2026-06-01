@@ -41,7 +41,7 @@ Route::post('/register', function (Request $request) {
     ], 201);
 });
 
-Route::post('/login', function (Request $request) {
+Route::middleware('web')->post('/login', function (Request $request) {
     $credentials = $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required'],
@@ -52,6 +52,8 @@ Route::post('/login', function (Request $request) {
             'message' => 'メールアドレスまたはパスワードが違います。',
         ], 401);
     }
+
+    PostController::clearViewedPostsFromSession($request);
 
     $user = User::where('email', $credentials['email'])->firstOrFail();
     $token = $user->createToken('openpersona_token')->plainTextToken;
@@ -76,7 +78,7 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 });
 
 Route::get('/posts', [PostController::class, 'index']);
-Route::get('/posts/{post}', [PostController::class, 'show']);
+Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
