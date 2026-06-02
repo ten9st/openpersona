@@ -4,21 +4,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { NavLink } from '@/components/nav-links';
+import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { type PostAuthor } from '@/lib/post-author';
 
 type Comment = {
   id: number;
   body: string;
   created_at: string;
-  user: {
-    id: number;
-    last_name: string;
-    first_name: string;
-  };
+  user: PostAuthor;
 };
 
 type Post = {
@@ -30,11 +28,7 @@ type Post = {
   published_at: string | null;
   comments: Comment[];
 
-  user: {
-    id: number;
-    last_name: string;
-    first_name: string;
-  };
+  user: PostAuthor;
 
   category: {
     id: number;
@@ -171,10 +165,7 @@ export default function PostDetailPage() {
               <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
                 {post.category.name}
               </span>
-              <span className="text-muted">
-                {post.user.last_name}
-                {post.user.first_name}
-              </span>
+              <AuthorLink user={post.user} />
               {post.published_at && (
                 <span className="text-muted">
                   {new Date(post.published_at).toLocaleDateString('ja-JP')}
@@ -251,10 +242,7 @@ export default function PostDetailPage() {
                   <li key={comment.id}>
                     <Card>
                       <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-medium text-foreground">
-                          {comment.user.last_name}
-                          {comment.user.first_name}
-                        </span>
+                        <AuthorLink user={comment.user} className="font-medium" />
                         <span className="text-muted">
                           {new Date(comment.created_at).toLocaleString('ja-JP')}
                         </span>
