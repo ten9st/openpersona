@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\IdentityVerification;
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
+use App\Models\TrustScore;
 use App\Models\User;
 use App\Models\UserCareer;
 use App\Models\UserEducation;
@@ -72,6 +74,8 @@ class PublicProfileTest extends TestCase
             ->assertJsonPath('user.first_name', '太郎')
             ->assertJsonPath('user.region', '東京都')
             ->assertJsonPath('user.age', $user->birthdate->age)
+            ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_UNVERIFIED)
+            ->assertJsonPath('identity_verified', false)
             ->assertJsonPath('profile.biography', '自己紹介')
             ->assertJsonPath('profile.occupation', null)
             ->assertJsonCount(1, 'educations')
@@ -105,5 +109,25 @@ class PublicProfileTest extends TestCase
     public function test_public_profile_returns_not_found_for_missing_user(): void
     {
         $this->getJson('/api/users/99999')->assertNotFound();
+    }
+
+    public function test_public_profile_shows_verified_badge_and_max_score(): void
+    {
+        $user = User::factory()->create();
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+
+        IdentityVerification::create([
+            'user_id' => $user->id,
+            'verification_method' => 'my_number_card',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        TrustScore::ensureForUser($user);
+
+        $this->getJson("/api/users/{$user->id}")
+            ->assertOk()
+            ->assertJsonPath('identity_verified', true)
+            ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Validation\Rule;
 
 class UserBasicInfoRules
@@ -51,6 +52,24 @@ class UserBasicInfoRules
     }
 
     /**
+     * 本人確認済みユーザー向け（基本情報は変更不可・都道府県のみ検証）
+     *
+     * @return array<string, list<string|\Illuminate\Validation\Rules\In>>
+     */
+    public static function lockedProfileRules(User $user): array
+    {
+        return [
+            'last_name' => ['required', Rule::in([$user->last_name])],
+            'first_name' => ['required', Rule::in([$user->first_name])],
+            'birthdate' => [
+                'required',
+                Rule::in([$user->birthdate?->format('Y-m-d')]),
+            ],
+            'region' => ['required', 'string', Rule::in(Prefectures::all())],
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function messages(): array
@@ -69,6 +88,9 @@ class UserBasicInfoRules
             'birthdate.before_or_equal' => self::MIN_AGE.'歳以上'.self::MAX_AGE.'歳以下で入力してください。',
             'region.required' => '都道府県を選択してください。',
             'region.in' => '都道府県を正しく選択してください。',
+            'last_name.in' => '本人確認後は姓を変更できません。',
+            'first_name.in' => '本人確認後は名を変更できません。',
+            'birthdate.in' => '本人確認後は生年月日を変更できません。',
         ];
     }
 

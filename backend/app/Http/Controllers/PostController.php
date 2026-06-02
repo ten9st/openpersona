@@ -175,12 +175,25 @@ class PostController extends Controller
             'category:id,name,slug',
             'comments' => fn ($query) => $query
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
-                ->with('user:id,last_name,first_name')
+                ->with([
+                    'user:id,last_name,first_name,birthdate',
+                    'user.profile:id,user_id,region',
+                    'user.profileVisibilities' => fn ($q) => $q
+                        ->select(['id', 'user_id', 'field_name', 'is_public'])
+                        ->where('field_name', 'first_name'),
+                    'user.identityVerifications:id,user_id,verification_status',
+                ])
                 ->oldest(),
         ]);
 
         $postArray = $post->toArray();
         $postArray['user'] = $this->formatAuthorForList($post->user);
+        $postArray['comments'] = collect($post->comments)->map(function ($comment) {
+            $commentArray = $comment->toArray();
+            $commentArray['user'] = PublicProfilePresenter::summary($comment->user);
+
+            return $commentArray;
+        })->all();
 
         return response()->json([
             'post' => $postArray,

@@ -5,7 +5,12 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
-import { formatAuthorSummary } from '@/lib/post-author';
+import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
+import {
+  formatAuthorSummary,
+  formatTrustScore,
+  type TrustScoreSummary,
+} from '@/lib/post-author';
 
 type PublicEducation = {
   school_name: string;
@@ -35,6 +40,8 @@ type PublicProfile = {
     biography: string | null;
     occupation: string | null;
   };
+  trust_score: TrustScoreSummary;
+  identity_verified: boolean;
   educations: PublicEducation[];
   careers: PublicCareer[];
 };
@@ -126,8 +133,17 @@ export default function PublicProfilePage() {
       {profile && (
         <div className="grid gap-6">
           <Card>
-            <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+              <IdentityVerifiedBadge verified={profile.identity_verified} />
+            </div>
             <dl className="mt-4 grid gap-3 text-sm">
+              <div className="flex flex-wrap gap-x-2">
+                <dt className="font-medium text-muted">信頼スコア</dt>
+                <dd className="text-foreground">
+                  {formatTrustScore(profile.trust_score)}
+                </dd>
+              </div>
               <div className="flex flex-wrap gap-x-2">
                 <dt className="font-medium text-muted">氏名</dt>
                 <dd className="text-foreground">

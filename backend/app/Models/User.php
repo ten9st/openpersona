@@ -67,4 +67,26 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserCareer::class)->orderBy('sort_order');
     }
+
+    public function trustScore()
+    {
+        return $this->hasOne(TrustScore::class);
+    }
+
+    public function identityVerifications()
+    {
+        return $this->hasMany(IdentityVerification::class);
+    }
+
+    public function isIdentityVerified(): bool
+    {
+        return $this->identityVerifications()
+            ->where('verification_status', IdentityVerification::STATUS_VERIFIED)
+            ->exists();
+    }
+
+    public function hasLockedBasicInfo(): bool
+    {
+        return $this->isIdentityVerified();
+    }
 }

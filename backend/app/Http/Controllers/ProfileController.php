@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
+use App\Models\TrustScore;
 use App\Models\User;
 use App\Models\UserCareer;
 use App\Models\UserEducation;
@@ -31,8 +32,12 @@ class ProfileController extends Controller
             $visibilityRules["visibilities.{$field}"] = ['required', 'boolean'];
         }
 
+        $basicRules = $user->hasLockedBasicInfo()
+            ? UserBasicInfoRules::lockedProfileRules($user)
+            : UserBasicInfoRules::profileRules();
+
         $validated = $request->validate([
-            ...UserBasicInfoRules::profileRules(),
+            ...$basicRules,
             'biography' => ['nullable', 'string'],
             'occupation' => ['nullable', 'string', 'max:255'],
             'visibilities' => ['required', 'array'],
@@ -53,11 +58,13 @@ class ProfileController extends Controller
             ...$visibilityRules,
         ], UserBasicInfoRules::messages());
 
-        $user->update([
-            'last_name' => $validated['last_name'],
-            'first_name' => $validated['first_name'],
-            'birthdate' => $validated['birthdate'],
-        ]);
+        if (! $user->hasLockedBasicInfo()) {
+            $user->update([
+                'last_name' => $validated['last_name'],
+                'first_name' => $validated['first_name'],
+                'birthdate' => $validated['birthdate'],
+            ]);
+        }
 
         Profile::updateOrCreate(
             ['user_id' => $user->id],
@@ -86,10 +93,11 @@ class ProfileController extends Controller
         $this->syncCareers($user, $validated['careers']);
 
         $profile = Profile::where('user_id', $user->id)->firstOrFail();
+        $user = $user->fresh();
 
         return response()->json([
             'message' => 'プロフィールを更新しました。',
-            ...$this->buildProfilePayload($user->fresh(), $profile),
+            ...$this->buildProfilePayload($user, $profile),
         ]);
     }
 
@@ -98,8 +106,15 @@ class ProfileController extends Controller
      */
     private function buildProfilePayload(User $user, Profile $profile): array
     {
+        $trustScore = TrustScore::ensureForUser($user);
+
         return [
+            'meta' => [
+                'basic_info_locked' => $user->hasLockedBasicInfo(),
+                'identity_verified' => $user->isIdentityVerified(),
+            ],
             'user' => [
+                'email' => $user->email,
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'birthdate' => $user->birthdate?->format('Y-m-d'),
@@ -109,6 +124,7 @@ class ProfileController extends Controller
                 'occupation' => $profile->occupation,
                 'region' => $profile->region,
             ],
+            'trust_score' => $trustScore->toPublicArray(),
             'visibilities' => $this->getVisibilities($user),
             'educations' => $user->educations->map(fn (UserEducation $e) => [
                 'id' => $e->id,
@@ -184,6 +200,7 @@ class ProfileController extends Controller
     {
         $profile = Profile::firstOrCreate(['user_id' => $user->id]);
         $this->ensureVisibilities($user);
+        TrustScore::ensureForUser($user);
 
         return $profile;
     }

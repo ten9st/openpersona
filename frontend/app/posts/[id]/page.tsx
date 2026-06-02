@@ -16,11 +16,7 @@ type Comment = {
   id: number;
   body: string;
   created_at: string;
-  user: {
-    id: number;
-    last_name: string;
-    first_name: string;
-  };
+  user: PostAuthor;
 };
 
 type Post = {
@@ -246,10 +242,7 @@ export default function PostDetailPage() {
                   <li key={comment.id}>
                     <Card>
                       <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-medium text-foreground">
-                          {comment.user.last_name}
-                          {comment.user.first_name}
-                        </span>
+                        <AuthorLink user={comment.user} className="font-medium" />
                         <span className="text-muted">
                           {new Date(comment.created_at).toLocaleString('ja-JP')}
                         </span>

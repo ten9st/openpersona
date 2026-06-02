@@ -1,22 +1,15 @@
 ## テーブル仕様
 
-### 投稿一覧に表示するプロフィール情報
-
-| 項目 | データソース | 表示ルール |
-|------|-------------|-----------|
-| 氏名（姓・名） | users.last_name / users.first_name | 姓は常に表示。名は profile_visibilities で制御 |
-| 地域（都道府県） | profiles.region | 常に表示 |
-| 年齢 | users.birthdate から計算 | 常に表示 |
-| 信頼スコア | trust_scores.total_score | 常に表示 |
-
 1.users
 認証の本体
 
 ポイント
 ・本名は必須入力
-・姓・年齢は常に表示（profile_visibilities の対象外）
+・姓・年齢・地域は常に表示
 ・名の公開は profile_visibilities で制御
 ・認証系の中心
+・本人確認前は全項目変更可
+・本人確認後は基本情報（姓・名・生年月日・メールアドレス）の変更不可
 
 users
 - id
@@ -33,7 +26,6 @@ users
 
 ポイント
 ・公開制御は profile_visibilities テーブルで一元管理
-・地域（都道府県）は投稿一覧で常に表示（公開フラグの対象外）
 ・項目が増えてもテーブル構造を変えずに対応できる
 
 profiles
@@ -41,7 +33,7 @@ profiles
 - user_id
 - biography
 - occupation
-- region（都道府県名。例: 東京都）
+- region
 - created_at
 - updated_at
 
@@ -53,7 +45,6 @@ profiles
 ・is_public で公開/非公開を管理
 ・項目追加時もテーブル構造を変更不要
 ・姓・年齢・地域は常に表示のため対象外
-・first_name / biography / occupation のみ管理
 
 profile_visibilities
 - id
@@ -255,6 +246,8 @@ post_tags
 ポイント
 ・合計だけでなく内訳も保存
 ・後でロジックを変えても追いやすい
+・本人確認前は max_score = 50、本人確認後は max_score = 100
+・本人確認済みユーザーには「✓ 本人確認済み」バッジを表示
 
 trust_scores
 - id
@@ -264,12 +257,18 @@ trust_scores
 - source_score
 - history_score
 - total_score
+- max_score
 - calculated_at
 - created_at
 - updated_at
 
 15.identity_verifications
 本人確認
+
+ポイント
+・verification_status が verified になると基本情報がロックされる
+・ロック対象：姓・名・生年月日・メールアドレス
+・職業・地域・biography は本人確認後も変更可
 
 identity_verifications
 - id
