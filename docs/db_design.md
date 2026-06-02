@@ -5,8 +5,11 @@
 
 ポイント
 ・本名は必須入力
-・公開は別テーブルで制御
+・姓・年齢・地域は常に表示
+・名の公開は profile_visibilities で制御
 ・認証系の中心
+・本人確認前は全項目変更可
+・本人確認後は基本情報（姓・名・生年月日・メールアドレス）の変更不可
 
 users
 - id
@@ -22,26 +25,41 @@ users
 公開用プロフィール
 
 ポイント
-・「姓のみ公開」「氏名公開」を管理しやすい
-・年齢公開フラグも持てる
-・MVPでは学歴・職歴をここに入れず、別テーブル化しても良い
+・公開制御は profile_visibilities テーブルで一元管理
+・項目が増えてもテーブル構造を変えずに対応できる
 
 profiles
 - id
 - user_id
-- display_last_name
-- display_first_name
-- age_public
-- full_name_public
 - biography
 - occupation
-- occupation_public
 - region
-- region_public
 - created_at
 - updated_at
 
-3.user_educations
+3.profile_visibilities
+プロフィールの公開フラグ管理
+
+ポイント
+・field_name で対象フィールドを指定
+・is_public で公開/非公開を管理
+・項目追加時もテーブル構造を変更不要
+・姓・年齢・地域は常に表示のため対象外
+
+profile_visibilities
+- id
+- user_id
+- field_name
+- is_public
+- created_at
+- updated_at
+
+field_name の例
+first_name
+biography
+occupation
+
+4.user_educations
 学歴
 
 ポイント
@@ -62,7 +80,7 @@ user_educations
 - created_at
 - updated_at
 
-4.user_careers
+5.user_careers
 職歴
 
 ポイント
@@ -82,7 +100,7 @@ user_careers
 - created_at
 - updated_at
 
-5.posts
+6.posts
 長文投稿の本体
 
 ポイント
@@ -106,7 +124,7 @@ posts
 
 statusの例: draft / published / deleted
 
-6.post_sources
+7.post_sources
 参考資料のURLの管理
 
 ポイント
@@ -125,7 +143,7 @@ post_sources
 
 source_typeの例: url / book / paper / goverment_document / other
 
-7.post_attachments
+8.post_attachments
 添付ファイル用
 
 ポイント
@@ -142,7 +160,7 @@ post_attachments
 - file_size
 - created_at
 
-8.comments
+9.comments
 コメントはフラット
 
 ポイント
@@ -157,7 +175,7 @@ comments
 - created_at
 - updated_at
 
-9.bookmarks
+10.bookmarks
 付箋
 
 ポイント
@@ -170,7 +188,7 @@ bookmarks
 - post_id
 - created_at
 
-10.follows
+11.follows
 フォロー
 
 ポイント
@@ -183,7 +201,7 @@ follows
 - followed_user_id
 - created_at
 
-11.categories
+12.categories
 固定カテゴリ
 
 例
@@ -205,7 +223,7 @@ categories
 - created_at
 - updated_at
 
-12.tags
+13.tags
 自由タグ
 
 tags
@@ -221,13 +239,15 @@ post_tags
 - post_id
 - tag_id
 
-13.trust_scores
+14.trust_scores
 信頼スコア本体
 最初はシンプルに、内訳も持っておくと良い
 
 ポイント
 ・合計だけでなく内訳も保存
 ・後でロジックを変えても追いやすい
+・本人確認前は max_score = 50、本人確認後は max_score = 100
+・本人確認済みユーザーには「✓ 本人確認済み」バッジを表示
 
 trust_scores
 - id
@@ -237,12 +257,18 @@ trust_scores
 - source_score
 - history_score
 - total_score
+- max_score
 - calculated_at
 - created_at
 - updated_at
 
-14.identity_verifications
+15.identity_verifications
 本人確認
+
+ポイント
+・verification_status が verified になると基本情報がロックされる
+・ロック対象：姓・名・生年月日・メールアドレス
+・職業・地域・biography は本人確認後も変更可
 
 identity_verifications
 - id
@@ -264,6 +290,7 @@ rejected
 
 ## ER
 users 1 - 1 profiles
+users 1 - n profile_visibilities
 users 1 - n user_educations
 users 1 - n user_careers
 users 1 - n posts
@@ -278,4 +305,3 @@ posts 1 - n post_sources
 posts 1 - n post_attachments
 posts n - 1 categories
 posts n - n tags
-

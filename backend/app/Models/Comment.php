@@ -4,14 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Profile extends Model
+class Comment extends Model
 {
     protected $fillable = [
+        'post_id',
         'user_id',
-        'biography',
-        'occupation',
-        'region',
+        'body',
     ];
+
+    public function post()
+    {
+        return $this->belongsTo(Post::class);
+    }
 
     public function user()
     {

@@ -5,18 +5,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicProfileController;
 use App\Models\Profile;
+use App\Models\ProfileVisibility;
+use App\Models\TrustScore;
+use App\Support\UserBasicInfoRules;
 
 Route::post('/register', function (Request $request) {
+    $request->merge(UserBasicInfoRules::trimInput($request->all()));
+
     $validated = $request->validate([
         'email' => ['required', 'email', 'unique:users,email'],
         'password' => ['required', 'min:8'],
-        'last_name' => ['required', 'string', 'max:255'],
-        'first_name' => ['required', 'string', 'max:255'],
-        'birthdate' => ['required', 'date'],
-    ]);
+        ...UserBasicInfoRules::userRules(),
+    ], UserBasicInfoRules::messages());
 
     $user = User::create([
         'email' => $validated['email'],
@@ -26,13 +31,17 @@ Route::post('/register', function (Request $request) {
         'birthdate' => $validated['birthdate'],
     ]);
 
-    Profile::create([
-        'user_id' => $user->id,
-        'display_last_name' => $user->last_name,
-        'display_first_name' => $user->first_name,
-        'age_public' => true,
-        'full_name_public' => false,
-    ]);
+    Profile::create(['user_id' => $user->id]);
+
+    foreach (ProfileVisibility::defaultMap() as $fieldName => $isPublic) {
+        ProfileVisibility::create([
+            'user_id' => $user->id,
+            'field_name' => $fieldName,
+            'is_public' => $isPublic,
+        ]);
+    }
+
+    TrustScore::ensureForUser($user);
 
     return response()->json([
         'message' => 'ユーザー登録が完了しました。',
@@ -40,7 +49,7 @@ Route::post('/register', function (Request $request) {
     ], 201);
 });
 
-Route::post('/login', function (Request $request) {
+Route::middleware('web')->post('/login', function (Request $request) {
     $credentials = $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required'],
@@ -51,6 +60,8 @@ Route::post('/login', function (Request $request) {
             'message' => 'メールアドレスまたはパスワードが違います。',
         ], 401);
     }
+
+    PostController::clearViewedPostsFromSession($request);
 
     $user = User::where('email', $credentials['email'])->firstOrFail();
     $token = $user->createToken('openpersona_token')->plainTextToken;
@@ -75,7 +86,12 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 });
 
 Route::get('/posts', [PostController::class, 'index']);
+Route::get('/users/{user}', [PublicProfileController::class, 'show']);
+Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
+Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
+Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
+Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
 Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
 Route::middleware('auth:sanctum')->put('/profile', [ProfileController::class, 'update']);
