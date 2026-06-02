@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Comment;
 use App\Models\Post;
+use App\Support\PublicProfilePresenter;
 use Illuminate\Http\Request;
 
 class CommentController extends Controller
@@ -24,11 +25,21 @@ class CommentController extends Controller
             'body' => $validated['body'],
         ]);
 
-        $comment->load('user:id,last_name,first_name');
+        $comment->load([
+            'user:id,last_name,first_name,birthdate',
+            'user.profile:id,user_id,region',
+            'user.profileVisibilities' => fn ($query) => $query
+                ->select(['id', 'user_id', 'field_name', 'is_public'])
+                ->where('field_name', 'first_name'),
+            'user.identityVerifications:id,user_id,verification_status',
+        ]);
+
+        $commentArray = $comment->toArray();
+        $commentArray['user'] = PublicProfilePresenter::summary($comment->user);
 
         return response()->json([
             'message' => 'コメントを投稿しました。',
-            'comment' => $comment,
+            'comment' => $commentArray,
         ], 201);
     }
 }

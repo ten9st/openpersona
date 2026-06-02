@@ -155,6 +155,9 @@ return new class extends Migration
             $table->unsignedInteger('total_score')->default(0)
                 ->comment('合計スコア');
 
+            $table->unsignedInteger('max_score')->default(50)
+                ->comment('スコア上限（本人確認前50・後100）');
+
             $table->timestamp('calculated_at')->nullable()
                 ->comment('計算日時');
 

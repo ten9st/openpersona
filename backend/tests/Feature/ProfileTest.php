@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\IdentityVerification;
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
+use App\Models\TrustScore;
 use App\Models\User;
 use App\Models\UserCareer;
 use App\Models\UserEducation;
@@ -29,6 +31,9 @@ class ProfileTest extends TestCase
         $response = $this->getJson('/api/profile');
 
         $response->assertOk()
+            ->assertJsonPath('meta.basic_info_locked', false)
+            ->assertJsonPath('meta.identity_verified', false)
+            ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_UNVERIFIED)
             ->assertJsonPath('user.last_name', $user->last_name)
             ->assertJsonPath('user.first_name', $user->first_name)
             ->assertJsonPath('visibilities.first_name', false)
@@ -255,5 +260,95 @@ class ProfileTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['region']);
+    }
+
+    public function test_verified_user_cannot_change_locked_basic_info(): void
+    {
+        $user = User::factory()->create([
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => '1990-01-01',
+        ]);
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+
+        IdentityVerification::create([
+            'user_id' => $user->id,
+            'verification_method' => 'driver_license',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        TrustScore::ensureForUser($user);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/profile')
+            ->assertOk()
+            ->assertJsonPath('meta.basic_info_locked', true)
+            ->assertJsonPath('meta.identity_verified', true)
+            ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
+
+        $this->putJson('/api/profile', [
+            'last_name' => '変更',
+            'first_name' => '太郎',
+            'birthdate' => '1990-01-01',
+            'region' => '東京都',
+            'visibilities' => ProfileVisibility::defaultMap(),
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['last_name']);
+    }
+
+    public function test_verified_user_can_update_region_and_profile_fields(): void
+    {
+        $user = User::factory()->create([
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => '1990-01-01',
+        ]);
+        Profile::create([
+            'user_id' => $user->id,
+            'region' => '東京都',
+            'biography' => '旧',
+            'occupation' => '旧職',
+        ]);
+
+        IdentityVerification::create([
+            'user_id' => $user->id,
+            'verification_method' => 'driver_license',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/profile', [
+            'last_name' => '山田',
+            'first_name' => '太郎',
+            'birthdate' => '1990-01-01',
+            'region' => '大阪府',
+            'biography' => '新しい自己紹介',
+            'occupation' => '新職',
+            'visibilities' => ProfileVisibility::defaultMap(),
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertOk()
+            ->assertJsonPath('profile.region', '大阪府')
+            ->assertJsonPath('profile.biography', '新しい自己紹介')
+            ->assertJsonPath('profile.occupation', '新職');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'last_name' => '山田',
+        ]);
+
+        $this->assertDatabaseHas('profiles', [
+            'user_id' => $user->id,
+            'region' => '大阪府',
+            'occupation' => '新職',
+        ]);
     }
 }

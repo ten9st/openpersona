@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\IdentityVerification;
 use App\Models\Post;
 use App\Models\Profile;
+use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -51,7 +53,31 @@ class PostTest extends TestCase
             ->assertJsonCount(1, 'posts')
             ->assertJsonPath('posts.0.title', '公開投稿')
             ->assertJsonPath('posts.0.user.region', '東京都')
-            ->assertJsonPath('posts.0.user.age', $user->birthdate->age);
+            ->assertJsonPath('posts.0.user.age', $user->birthdate->age)
+            ->assertJsonPath('posts.0.user.trust_score.max_score', TrustScore::MAX_SCORE_UNVERIFIED)
+            ->assertJsonPath('posts.0.user.identity_verified', false);
+    }
+
+    public function test_post_list_shows_verified_author_badge(): void
+    {
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+
+        IdentityVerification::create([
+            'user_id' => $user->id,
+            'verification_method' => 'driver_license',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        TrustScore::ensureForUser($user);
+        $category = $this->createCategory();
+        $this->createPublishedPost($user, $category);
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonPath('posts.0.user.identity_verified', true)
+            ->assertJsonPath('posts.0.user.trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
     }
 
     public function test_guest_can_view_published_post(): void

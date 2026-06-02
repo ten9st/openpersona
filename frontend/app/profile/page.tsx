@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckboxLabel, Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
 import { Select } from '@/components/ui/select';
+import { formatTrustScore } from '@/lib/post-author';
 import { isPrefecture, PREFECTURES } from '@/lib/prefectures';
 import {
   birthdateInputBounds,
@@ -153,6 +155,13 @@ export default function ProfilePage() {
   const router = useRouter();
   const [form, setForm] = useState<ProfileForm>(defaultForm);
   const [basicInfoErrors, setBasicInfoErrors] = useState<BasicInfoErrors>({});
+  const [basicInfoLocked, setBasicInfoLocked] = useState(false);
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [email, setEmail] = useState('');
+  const [trustScore, setTrustScore] = useState<{
+    total_score: number;
+    max_score: number;
+  } | null>(null);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -233,6 +242,10 @@ export default function ProfilePage() {
       return;
     }
 
+    setBasicInfoLocked(Boolean(data.meta?.basic_info_locked));
+    setIdentityVerified(Boolean(data.meta?.identity_verified));
+    setEmail(data.user.email ?? '');
+    setTrustScore(data.trust_score ?? null);
     setForm({
       last_name: data.user.last_name ?? '',
       first_name: data.user.first_name ?? '',
@@ -347,10 +360,35 @@ export default function ProfilePage() {
       <div className="grid gap-6">
         <Card>
           <div className="grid gap-6">
-            <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+              <IdentityVerifiedBadge verified={identityVerified} />
+            </div>
             <p className="-mt-4 text-sm text-muted">
               姓・年齢・都道府県は投稿一覧で常に表示されます。名の公開は下のチェックで設定できます。
             </p>
+            {basicInfoLocked && (
+              <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted">
+                本人確認済みのため、姓・名・生年月日・メールアドレスは変更できません。都道府県・職業・自己紹介などは引き続き編集できます。
+              </p>
+            )}
+            {trustScore && (
+              <p className="text-sm text-muted">
+                信頼スコア: {formatTrustScore(trustScore)}
+              </p>
+            )}
+
+            {email && (
+              <Label>
+                メールアドレス
+                <Input value={email} disabled readOnly />
+                {basicInfoLocked && (
+                  <span className="mt-1 text-xs font-normal text-muted">
+                    本人確認後は変更できません
+                  </span>
+                )}
+              </Label>
+            )}
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Label>
@@ -358,6 +396,8 @@ export default function ProfilePage() {
                 <Input
                   value={form.last_name}
                   maxLength={NAME_MAX}
+                  disabled={basicInfoLocked}
+                  readOnly={basicInfoLocked}
                   onChange={(e) => {
                     clearBasicInfoError('last_name');
                     setForm({ ...form, last_name: e.target.value });
@@ -374,6 +414,8 @@ export default function ProfilePage() {
                 <Input
                   value={form.first_name}
                   maxLength={NAME_MAX}
+                  disabled={basicInfoLocked}
+                  readOnly={basicInfoLocked}
                   onChange={(e) => {
                     clearBasicInfoError('first_name');
                     setForm({ ...form, first_name: e.target.value });
@@ -423,6 +465,8 @@ export default function ProfilePage() {
                 value={form.birthdate}
                 min={birthdateBounds.min}
                 max={birthdateBounds.max}
+                disabled={basicInfoLocked}
+                readOnly={basicInfoLocked}
                 onChange={(e) => {
                   clearBasicInfoError('birthdate');
                   setForm({ ...form, birthdate: e.target.value });

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ProfileVisibility;
+use App\Models\TrustScore;
 use App\Models\User;
 use App\Models\UserCareer;
 use App\Models\UserEducation;
@@ -16,6 +17,8 @@ class PublicProfilePresenter
     {
         self::loadSummaryRelations($user);
 
+        $trustScore = TrustScore::ensureForUser($user);
+
         return [
             'id' => $user->id,
             'last_name' => $user->last_name,
@@ -24,6 +27,8 @@ class PublicProfilePresenter
                 : null,
             'age' => $user->birthdate?->age,
             'region' => $user->profile?->region,
+            'trust_score' => $trustScore->toPublicArray(),
+            'identity_verified' => $user->isIdentityVerified(),
         ];
     }
 
@@ -33,6 +38,8 @@ class PublicProfilePresenter
     public static function detail(User $user): array
     {
         self::loadDetailRelations($user);
+
+        $trustScore = TrustScore::ensureForUser($user);
 
         $biography = self::isFieldPublic($user, 'biography')
             ? $user->profile?->biography
@@ -56,6 +63,8 @@ class PublicProfilePresenter
                 'biography' => $biography,
                 'occupation' => $occupation,
             ],
+            'trust_score' => $trustScore->toPublicArray(),
+            'identity_verified' => $user->isIdentityVerified(),
             'educations' => $user->educations->map(fn (UserEducation $e) => [
                 'school_name' => $e->school_name,
                 'faculty' => $e->faculty,
@@ -80,6 +89,7 @@ class PublicProfilePresenter
             'profileVisibilities' => fn ($query) => $query
                 ->select(['id', 'user_id', 'field_name', 'is_public'])
                 ->where('field_name', 'first_name'),
+            'identityVerifications:id,user_id,verification_status',
         ]);
     }
 
@@ -88,6 +98,7 @@ class PublicProfilePresenter
         $user->loadMissing([
             'profile:id,user_id,biography,occupation,region',
             'profileVisibilities:id,user_id,field_name,is_public',
+            'identityVerifications:id,user_id,verification_status',
             'educations' => fn ($query) => $query
                 ->where('is_public', true)
                 ->orderBy('sort_order'),
