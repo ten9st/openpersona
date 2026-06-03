@@ -107,10 +107,17 @@ openpersona/
 |------|:-----------:|:--------:|
 | ユーザー登録（本名必須） | ✅ | ✅ |
 | ログイン（Sanctum トークン） | ✅ | ✅ |
-| 公開プロフィールの取得・更新 | ✅ | ✅ |
+| プロフィールの取得・更新 | ✅ | ✅ |
+| プロフィール公開設定（項目単位） | ✅ | ✅ |
+| 学歴・職歴の登録・公開設定 | ✅ | ✅ |
+| 他人の公開プロフィール閲覧 | ✅ | ✅ |
+| 信頼スコアの算出・表示 | ✅ | ✅ |
 | 投稿一覧（公開済みのみ） | ✅ | ✅ |
 | 投稿詳細（ゲスト閲覧可） | ✅ | ✅ |
 | 投稿作成（下書き / 公開） | ✅ | ✅ |
+| 下書き一覧 | ✅ | ✅ |
+| 投稿の更新 | ✅ | ✅ |
+| 投稿の削除（論理削除、投稿者のみ） | ✅ | ✅ |
 | コメント投稿・表示 | ✅ | ✅ |
 | 閲覧数カウント（重複排除） | ✅ | ✅ |
 
@@ -120,14 +127,11 @@ openpersona/
 |------|----------|
 | 付箋（ブックマーク） | `bookmarks` |
 | フォロー | `follows` |
-| 信頼スコア | `trust_scores` |
 | 投稿ソース（参考文献） | `post_sources` |
 | 投稿添付ファイル | `post_attachments` |
 | タグ | `tags`, `post_tags` |
-| 学歴 | `user_educations` |
-| 職歴 | `user_careers` |
-| 本人確認 | `identity_verifications` |
-| カテゴリ CRUD | `categories`（参照のみ） |
+| 本人確認（申請・審査） | `identity_verifications`（verified バッジ表示のみ実装） |
+| カテゴリ CRUD / 一覧 API | `categories`（`DatabaseSeeder` で初期データ投入のみ） |
 
 詳細なテーブル定義は [`docs/db_design.md`](docs/db_design.md) を参照。
 
@@ -565,9 +569,10 @@ Feature テスト: `PostTest`, `CommentTest`, `ProfileTest`（認証・閲覧数
 
 ## 既知の制限・未対応事項
 
-1. **DatabaseSeeder** が現行 `users` スキーマ（`last_name` 等）と不整合のため、そのままでは実行できない
-2. **カテゴリのシード** がなく、投稿作成時に手動投入が必要（フロントは `category_id: 1` を固定）
-3. **sessions テーブル** のマイグレーションがない（`SESSION_DRIVER=database` 設定時にログイン・閲覧数カウントに影響しうる）
-4. Docker の PostgreSQL と `.env.example` の SQLite デフォルトが一致していない
-5. 投稿の更新・削除、他人プロフィール閲覧、ログアウト API などは未実装
-6. Policy / Form Request クラスは未使用（コントローラ内 `validate()` で実施）
+1. **sessions テーブル** のマイグレーションがない（`SESSION_DRIVER=database` 設定時にログイン・閲覧数カウントに影響しうる）
+2. Docker の PostgreSQL と `.env.example` の SQLite デフォルトが一致していない
+3. **カテゴリ選択 UI 未実装** — `php artisan db:seed` で初期データは投入できるが、カテゴリ一覧 API がなくフロントは `category_id: 1` 固定
+4. **ログアウト API** 未実装（フロントは `localStorage` のトークン削除のみ）
+5. **本人確認** — DB 上の verified ステータスをバッジ表示するのみ。申請・審査フローは未実装
+6. コメント削除、付箋・フォロー、投稿ソース・添付・タグなどは未実装
+7. **PostPolicy** は投稿削除のみ適用（更新はコントローラ内チェック）。Form Request クラスは未使用
