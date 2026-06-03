@@ -11,7 +11,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicProfileController;
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
-use App\Models\TrustScore;
 use App\Support\UserBasicInfoRules;
 
 Route::post('/register', function (Request $request) {
@@ -40,8 +39,6 @@ Route::post('/register', function (Request $request) {
             'is_public' => $isPublic,
         ]);
     }
-
-    TrustScore::ensureForUser($user);
 
     return response()->json([
         'message' => 'ユーザー登録が完了しました。',
