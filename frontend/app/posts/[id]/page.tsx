@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { API_BASE } from '@/lib/api';
 import { type PostAuthor } from '@/lib/post-author';
 
 type Comment = {
@@ -37,8 +38,6 @@ type Post = {
   };
 };
 
-const API_BASE = 'http://localhost:8000/api';
-
 export default function PostDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -52,6 +51,11 @@ export default function PostDetailPage() {
   const [commentIsError, setCommentIsError] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState('');
+  const [deleteIsError, setDeleteIsError] = useState(false);
   const loadedPostId = useRef<string | string[] | undefined>(undefined);
 
   const fetchPost = useCallback(async () => {
@@ -64,7 +68,7 @@ export default function PostDetailPage() {
 
     const token = localStorage.getItem('openpersona_token');
 
-    const res = await fetch(`${API_BASE}/posts/${postId}`, {
+    const res = await fetch(`${API_BASE}/api/posts/${postId}`, {
       credentials: 'include',
       headers: {
         Accept: 'application/json',
@@ -88,7 +92,26 @@ export default function PostDetailPage() {
   }, [postId]);
 
   useEffect(() => {
-    setIsLoggedIn(!!localStorage.getItem('openpersona_token'));
+    const token = localStorage.getItem('openpersona_token');
+    setIsLoggedIn(!!token);
+
+    if (!token) {
+      setCurrentUserId(null);
+    } else {
+      fetch(`${API_BASE}/api/me`, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.user?.id != null) {
+            setCurrentUserId(data.user.id);
+          }
+        })
+        .catch(() => setCurrentUserId(null));
+    }
 
     if (loadedPostId.current === postId) {
       return;
@@ -97,6 +120,42 @@ export default function PostDetailPage() {
     loadedPostId.current = postId;
     fetchPost();
   }, [fetchPost, postId]);
+
+  const isAuthor =
+    post != null && currentUserId != null && post.user.id === currentUserId;
+
+  const deletePost = async () => {
+    const token = localStorage.getItem('openpersona_token');
+
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteMessage('');
+    setDeleteIsError(false);
+
+    const res = await fetch(`${API_BASE}/api/posts/${postId}`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setDeleteMessage(data.message ?? '投稿の削除に失敗しました。');
+      setDeleteIsError(true);
+      setIsDeleting(false);
+      return;
+    }
+
+    setShowDeleteDialog(false);
+    router.push('/posts');
+  };
 
   const submitComment = async () => {
     const token = localStorage.getItem('openpersona_token');
@@ -116,7 +175,7 @@ export default function PostDetailPage() {
     setCommentMessage('投稿中...');
     setCommentIsError(false);
 
-    const res = await fetch(`${API_BASE}/posts/${postId}/comments`, {
+    const res = await fetch(`${API_BASE}/api/posts/${postId}/comments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -179,9 +238,24 @@ export default function PostDetailPage() {
               {post.body}
             </p>
 
-            <div className="mt-6 flex gap-4 border-t border-border pt-4 text-xs text-muted">
-              <span>閲覧 {post.view_count}</span>
-              <span>付箋 {post.bookmark_count}</span>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
+              <div className="flex gap-4 text-xs text-muted">
+                <span>閲覧 {post.view_count}</span>
+                <span>付箋 {post.bookmark_count}</span>
+              </div>
+              {isAuthor && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    setDeleteMessage('');
+                    setDeleteIsError(false);
+                    setShowDeleteDialog(true);
+                  }}
+                >
+                  投稿を削除
+                </Button>
+              )}
             </div>
           </Card>
 
@@ -268,6 +342,50 @@ export default function PostDetailPage() {
           >
             投稿一覧に戻る
           </button>
+        </div>
+      )}
+
+      {showDeleteDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-post-dialog-title"
+        >
+          <Card className="w-full max-w-md shadow-lg">
+            <h2
+              id="delete-post-dialog-title"
+              className="text-lg font-semibold text-foreground"
+            >
+              投稿を削除しますか？
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              この操作は取り消せません。投稿は一覧・詳細から非表示になります。
+            </p>
+            {deleteMessage && (
+              <div className="mt-4">
+                <Alert message={deleteMessage} variant={deleteIsError ? 'error' : 'info'} />
+              </div>
+            )}
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={isDeleting}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={deletePost}
+                disabled={isDeleting}
+              >
+                {isDeleting ? '削除中...' : '削除する'}
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </PageShell>

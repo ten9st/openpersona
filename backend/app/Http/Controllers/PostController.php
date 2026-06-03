@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\PublicProfilePresenter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class PostController extends Controller
@@ -102,6 +103,7 @@ class PostController extends Controller
                     ->where('field_name', 'first_name'),
                 'category:id,name,slug',
             ])
+            ->where('status', '!=', 'deleted')
             ->where('status', 'published')
             ->latest('published_at');
 
@@ -153,6 +155,10 @@ class PostController extends Controller
 
     public function show(Request $request, Post $post)
     {
+        if ($post->status === 'deleted') {
+            abort(404);
+        }
+
         $accessToken = $this->resolveAccessToken($request);
 
         if ($post->status !== 'published' && ! $this->isPostAuthor($post, $accessToken)) {
@@ -174,6 +180,7 @@ class PostController extends Controller
                 ->where('field_name', 'first_name'),
             'category:id,name,slug',
             'comments' => fn ($query) => $query
+                ->whereHas('post', fn ($postQuery) => $postQuery->where('status', '!=', 'deleted'))
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
                 ->with([
                     'user:id,last_name,first_name,birthdate',
@@ -261,6 +268,17 @@ class PostController extends Controller
                 ? '投稿を公開しました。'
                 : '下書きを保存しました。',
             'post' => $post->fresh(),
+        ]);
+    }
+
+    public function destroy(Request $request, Post $post)
+    {
+        Gate::authorize('delete', $post);
+
+        $post->update(['status' => 'deleted']);
+
+        return response()->json([
+            'message' => '投稿を削除しました。',
         ]);
     }
 

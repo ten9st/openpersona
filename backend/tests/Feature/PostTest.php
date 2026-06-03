@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\Comment;
 use App\Models\IdentityVerification;
 use App\Models\Post;
 use App\Models\Profile;
@@ -381,5 +382,93 @@ class PostTest extends TestCase
         $this->putJson("/api/posts/{$post->id}", [
             'title' => '改ざん',
         ])->assertForbidden();
+    }
+
+    public function test_author_can_delete_own_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('message', '投稿を削除しました。');
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'deleted',
+        ]);
+    }
+
+    public function test_user_cannot_delete_other_users_post(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        Sanctum::actingAs($other);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'published',
+        ]);
+    }
+
+    public function test_guest_cannot_delete_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertUnauthorized();
+    }
+
+    public function test_deleted_post_is_not_listed(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $post->update(['status' => 'deleted']);
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonCount(0, 'posts');
+    }
+
+    public function test_deleted_post_cannot_be_viewed_even_by_author(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $post->update(['status' => 'deleted']);
+
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertNotFound();
+    }
+
+    public function test_deleted_post_comments_are_not_visible(): void
+    {
+        $author = User::factory()->create();
+        $commenter = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        Comment::create([
+            'post_id' => $post->id,
+            'user_id' => $commenter->id,
+            'body' => 'コメント',
+        ]);
+
+        $post->update(['status' => 'deleted']);
+
+        $this->getJson("/api/posts/{$post->id}")->assertNotFound();
     }
 }
