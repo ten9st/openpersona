@@ -498,21 +498,27 @@ docker compose up -d
 | Backend | http://localhost:8000 |
 | PostgreSQL | localhost:5432（DB: `openpersona`, user/pass: `openpersona` / `secret`） |
 
-**初回セットアップ（backend コンテナ内）:**
+**初回セットアップ:**
+
+`docker compose up` 時に backend が自動で以下を実行します。
+
+- `.env` が無ければ `backend/.env.docker.example` をコピーして `APP_KEY` を生成
+- `php artisan migrate --force`
+
+初回のみカテゴリ等を投入:
+
+```bash
+docker exec -it openpersona_backend php artisan db:seed
+```
+
+手動で入る場合:
 
 ```bash
 docker exec -it openpersona_backend sh
-cp .env.example .env
-php artisan key:generate
-# .env の DB 接続を PostgreSQL に変更
+cp .env.docker.example .env   # 未作成時のみ
+php artisan key:generate        # APP_KEY が空のときのみ
 php artisan migrate
-```
-
-**カテゴリの投入（投稿作成に必要）:**
-
-```bash
-php artisan tinker
->>> \App\Models\Category::create(['name' => '政治', 'slug' => 'politics', 'posting_age_limit' => 18, 'sort_order' => 1]);
+php artisan db:seed
 ```
 
 ### ローカル（Composer）
@@ -550,7 +556,7 @@ Feature テスト: `PostTest`, `CommentTest`, `ProfileTest`（認証・閲覧数
 
 | 変数 | デフォルト | 用途 |
 |------|------------|------|
-| `DB_CONNECTION` | `sqlite` | DB 接続種別 |
+| `DB_CONNECTION` | `sqlite` | DB 接続種別（Docker は `backend/.env.docker.example` 参照） |
 | `SESSION_DRIVER` | `database` | セッション保存 |
 | `SESSION_DOMAIN` | `localhost` | Cookie ドメイン |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,...` | CORS 許可オリジン |
@@ -569,10 +575,8 @@ Feature テスト: `PostTest`, `CommentTest`, `ProfileTest`（認証・閲覧数
 
 ## 既知の制限・未対応事項
 
-1. **sessions テーブル** のマイグレーションがない（`SESSION_DRIVER=database` 設定時にログイン・閲覧数カウントに影響しうる）
-2. Docker の PostgreSQL と `.env.example` の SQLite デフォルトが一致していない
-3. **カテゴリ選択 UI 未実装** — `php artisan db:seed` で初期データは投入できるが、カテゴリ一覧 API がなくフロントは `category_id: 1` 固定
-4. **ログアウト API** 未実装（フロントは `localStorage` のトークン削除のみ）
-5. **本人確認** — DB 上の verified ステータスをバッジ表示するのみ。申請・審査フローは未実装
-6. コメント削除、付箋・フォロー、投稿ソース・添付・タグなどは未実装
-7. **PostPolicy** は投稿削除のみ適用（更新はコントローラ内チェック）。Form Request クラスは未使用
+1. **カテゴリ選択 UI 未実装** — `php artisan db:seed` で初期データは投入できるが、カテゴリ一覧 API がなくフロントは `category_id: 1` 固定
+2. **ログアウト API** 未実装（フロントは `localStorage` のトークン削除のみ）
+3. **本人確認** — DB 上の verified ステータスをバッジ表示するのみ。申請・審査フローは未実装
+4. コメント削除、付箋・フォロー、投稿ソース・添付・タグなどは未実装
+5. **PostPolicy** は投稿削除のみ適用（更新はコントローラ内チェック）。Form Request クラスは未使用
