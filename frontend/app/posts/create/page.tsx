@@ -1,13 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
+import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
+
+type Category = {
+  id: number;
+  name: string;
+  slug: string;
+};
 
 type PostResponse = {
   message: string;
@@ -22,31 +30,59 @@ type PostResponse = {
 export default function CreatePostPage() {
   const router = useRouter();
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState('');
   const [title, setTitle] = useState('日本のエネルギー政策について');
   const [body, setBody] = useState('ここに本文を書きます。');
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const res = await fetch(`${API_BASE}/api/categories`, {
+        headers: { Accept: 'application/json' },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        return;
+      }
+
+      const list: Category[] = data.categories ?? [];
+      setCategories(list);
+      if (list.length > 0) {
+        setCategoryId(String(list[0].id));
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
   const createPost = async (status: 'draft' | 'published') => {
-    const token = localStorage.getItem('openpersona_token');
+    const token = getAuthToken();
 
     if (!token) {
       router.push('/login');
       return;
     }
 
+    if (!categoryId) {
+      setMessage('カテゴリを選択してください。');
+      setIsError(true);
+      return;
+    }
+
     setMessage(status === 'draft' ? '下書き保存中...' : '公開中...');
     setIsError(false);
 
-    const res = await fetch('http://localhost:8000/api/posts', {
+    const res = await fetch(`${API_BASE}/api/posts`, {
       method: 'POST',
       headers: {
+        ...authHeaders(token),
         'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        category_id: 1,
+        category_id: Number(categoryId),
         title,
         body,
         status,
@@ -74,6 +110,25 @@ export default function CreatePostPage() {
 
       <Card>
         <div className="grid gap-6">
+          <Label>
+            カテゴリ
+            <Select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              disabled={categories.length === 0}
+            >
+              {categories.length === 0 ? (
+                <option value="">読み込み中...</option>
+              ) : (
+                categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))
+              )}
+            </Select>
+          </Label>
+
           <Label>
             タイトル
             <Input

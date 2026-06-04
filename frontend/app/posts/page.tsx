@@ -8,6 +8,7 @@ import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { logout as apiLogout } from '@/lib/api';
 import { type PostAuthor } from '@/lib/post-author';
 
 type Post = {
@@ -33,8 +34,8 @@ export default function PostsPage() {
   const [isError, setIsError] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const logout = () => {
-    localStorage.removeItem('openpersona_token');
+  const logout = async () => {
+    await apiLogout();
     setIsLoggedIn(false);
     router.push('/login');
   };
