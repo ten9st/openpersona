@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
@@ -82,6 +83,15 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
     ]);
 });
 
+Route::middleware('auth:sanctum')->post('/logout', function (Request $request) {
+    $request->user()->currentAccessToken()->delete();
+
+    return response()->json([
+        'message' => 'ログアウトしました。',
+    ]);
+});
+
+Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/posts', [PostController::class, 'index']);
 Route::get('/users/{user}', [PublicProfileController::class, 'show']);
 Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);

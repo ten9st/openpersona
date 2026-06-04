@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StorePostRequest;
+use App\Http\Requests\UpdatePostRequest;
 use App\Models\Post;
 use App\Models\PostViewRecord;
 use App\Models\User;
@@ -207,14 +209,9 @@ class PostController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StorePostRequest $request)
     {
-        $validated = $request->validate([
-            'category_id' => ['required', 'exists:categories,id'],
-            'title' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
-            'status' => ['nullable', 'in:draft,published'],
-        ]);
+        $validated = $request->validated();
 
         $status = $validated['status'] ?? 'draft';
 
@@ -235,18 +232,9 @@ class PostController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, Post $post)
+    public function update(UpdatePostRequest $request, Post $post)
     {
-        if ((int) $post->user_id !== (int) $request->user()->id) {
-            abort(403);
-        }
-
-        $validated = $request->validate([
-            'category_id' => ['sometimes', 'required', 'exists:categories,id'],
-            'title' => ['sometimes', 'required', 'string', 'max:255'],
-            'body' => ['sometimes', 'required', 'string'],
-            'status' => ['nullable', 'in:draft,published'],
-        ]);
+        $validated = $request->validated();
 
         $status = $validated['status'] ?? $post->status;
         $publishedAt = $post->published_at;
