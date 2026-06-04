@@ -97,6 +97,7 @@ Route::get('/users/{user}', [PublicProfileController::class, 'show']);
 Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
 Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
+Route::middleware('auth:sanctum')->post('/posts/{post}/copy', [PostController::class, 'copy']);
 Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
 Route::middleware('auth:sanctum')->delete('/posts/{post}', [PostController::class, 'destroy']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
 use App\Models\Post;
+use App\Models\PostSource;
 use App\Models\PostViewRecord;
 use App\Models\User;
 use App\Support\PublicProfilePresenter;
@@ -16,6 +17,8 @@ use Laravel\Sanctum\PersonalAccessToken;
 class PostController extends Controller
 {
     private const VIEWED_POST_SESSION_PREFIX = 'viewed_post_';
+
+    private const CORRECTION_TITLE_PREFIX = '【訂正】';
 
     public static function clearViewedPostsFromSession(Request $request): void
     {
@@ -181,6 +184,7 @@ class PostController extends Controller
                 ->select(['id', 'user_id', 'field_name', 'is_public'])
                 ->where('field_name', 'first_name'),
             'category:id,name,slug',
+            'sources',
             'comments' => fn ($query) => $query
                 ->whereHas('post', fn ($postQuery) => $postQuery->where('status', '!=', 'deleted'))
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
@@ -197,6 +201,7 @@ class PostController extends Controller
 
         $postArray = $post->toArray();
         $postArray['user'] = $this->formatAuthorForList($post->user);
+        $postArray['sources'] = $this->formatSources($post->sources);
         $postArray['comments'] = collect($post->comments)->map(function ($comment) {
             $commentArray = $comment->toArray();
             $commentArray['user'] = PublicProfilePresenter::summary($comment->user);
@@ -224,11 +229,20 @@ class PostController extends Controller
             'published_at' => $status === 'published' ? Carbon::now() : null,
         ]);
 
+        if (array_key_exists('sources', $validated)) {
+            $this->syncSources($post, $validated['sources']);
+        }
+
+        $post->load('sources');
+
         return response()->json([
             'message' => $status === 'published'
                 ? '投稿を公開しました。'
                 : '下書きを保存しました。',
-            'post' => $post,
+            'post' => [
+                ...$post->toArray(),
+                'sources' => $this->formatSources($post->sources),
+            ],
         ], 201);
     }
 
@@ -251,12 +265,61 @@ class PostController extends Controller
             'published_at' => $publishedAt,
         ]);
 
+        if (array_key_exists('sources', $validated)) {
+            $this->syncSources($post, $validated['sources']);
+        }
+
+        $post = $post->fresh(['sources']);
+
         return response()->json([
             'message' => $status === 'published'
                 ? '投稿を公開しました。'
                 : '下書きを保存しました。',
-            'post' => $post->fresh(),
+            'post' => [
+                ...$post->toArray(),
+                'sources' => $this->formatSources($post->sources),
+            ],
         ]);
+    }
+
+    public function copy(Request $request, Post $post)
+    {
+        Gate::authorize('copy', $post);
+
+        if ($post->status === 'deleted') {
+            abort(404);
+        }
+
+        $post->load('sources');
+
+        $copy = Post::create([
+            'user_id' => $request->user()->id,
+            'category_id' => $post->category_id,
+            'title' => $this->correctionTitle($post->title),
+            'body' => $post->body,
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+
+        foreach ($post->sources as $source) {
+            $copy->sources()->create([
+                'source_type' => $source->source_type,
+                'title' => $source->title,
+                'url' => $source->url,
+                'note' => $source->note,
+            ]);
+        }
+
+        $copy->load('sources');
+
+        return response()->json([
+            'message' => '訂正用の下書きを作成しました。内容を確認して公開してください。',
+            'copied_from_post_id' => $post->id,
+            'post' => [
+                ...$copy->toArray(),
+                'sources' => $this->formatSources($copy->sources),
+            ],
+        ], 201);
     }
 
     public function destroy(Request $request, Post $post)
@@ -268,6 +331,47 @@ class PostController extends Controller
         return response()->json([
             'message' => '投稿を削除しました。',
         ]);
+    }
+
+    private function correctionTitle(string $title): string
+    {
+        if (str_starts_with($title, self::CORRECTION_TITLE_PREFIX)) {
+            return $title;
+        }
+
+        return self::CORRECTION_TITLE_PREFIX.$title;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $sources
+     */
+    private function syncSources(Post $post, array $sources): void
+    {
+        $post->sources()->delete();
+
+        foreach ($sources as $source) {
+            $post->sources()->create([
+                'source_type' => $source['source_type'] ?? PostSource::TYPE_URL,
+                'title' => $source['title'] ?? null,
+                'url' => $source['url'] ?? null,
+                'note' => $source['note'] ?? null,
+            ]);
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, PostSource>  $sources
+     * @return list<array<string, mixed>>
+     */
+    private function formatSources($sources): array
+    {
+        return $sources->map(fn (PostSource $source) => [
+            'id' => $source->id,
+            'source_type' => $source->source_type,
+            'title' => $source->title,
+            'url' => $source->url,
+            'note' => $source->note,
+        ])->values()->all();
     }
 
     /**

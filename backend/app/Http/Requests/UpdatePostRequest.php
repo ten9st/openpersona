@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Post;
+use App\Support\PostSourceRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdatePostRequest extends FormRequest
@@ -25,6 +26,8 @@ class UpdatePostRequest extends FormRequest
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'body' => ['sometimes', 'required', 'string'],
             'status' => ['nullable', 'in:draft,published'],
+            'sources' => ['sometimes', 'array'],
+            ...PostSourceRules::itemRules(),
         ];
     }
 }

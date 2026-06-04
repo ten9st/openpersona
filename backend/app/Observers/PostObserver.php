@@ -16,6 +16,11 @@ class PostObserver
         $this->recalculate($post);
     }
 
+    public function updated(Post $post): void
+    {
+        $this->recalculate($post);
+    }
+
     public function deleted(Post $post): void
     {
         $this->recalculate($post);

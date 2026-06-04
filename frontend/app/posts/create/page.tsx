@@ -9,7 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
+import { PostSourcesEditor } from '@/components/post-sources-editor';
 import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
+import { toApiPostSources, type PostSourceInput } from '@/lib/post-source';
 
 type Category = {
   id: number;
@@ -34,6 +36,7 @@ export default function CreatePostPage() {
   const [categoryId, setCategoryId] = useState('');
   const [title, setTitle] = useState('日本のエネルギー政策について');
   const [body, setBody] = useState('ここに本文を書きます。');
+  const [sources, setSources] = useState<PostSourceInput[]>([]);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -75,6 +78,8 @@ export default function CreatePostPage() {
     setMessage(status === 'draft' ? '下書き保存中...' : '公開中...');
     setIsError(false);
 
+    const apiSources = toApiPostSources(sources);
+
     const res = await fetch(`${API_BASE}/api/posts`, {
       method: 'POST',
       headers: {
@@ -86,6 +91,7 @@ export default function CreatePostPage() {
         title,
         body,
         status,
+        ...(apiSources.length > 0 ? { sources: apiSources } : {}),
       }),
     });
 
@@ -145,6 +151,8 @@ export default function CreatePostPage() {
               onChange={(e) => setBody(e.target.value)}
             />
           </Label>
+
+          <PostSourcesEditor sources={sources} onChange={setSources} />
 
           <div className="flex flex-wrap gap-3">
             <Button onClick={() => createPost('published')}>公開する</Button>
