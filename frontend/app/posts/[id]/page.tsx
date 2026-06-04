@@ -10,8 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PostSourcesList } from '@/components/post-sources-list';
 import { API_BASE } from '@/lib/api';
+import { copyPostAsCorrection } from '@/lib/post-copy';
 import { type PostAuthor } from '@/lib/post-author';
+import { type PostSource } from '@/lib/post-source';
 
 type Comment = {
   id: number;
@@ -36,6 +39,8 @@ type Post = {
     name: string;
     slug: string;
   };
+
+  sources?: PostSource[];
 };
 
 export default function PostDetailPage() {
@@ -56,6 +61,9 @@ export default function PostDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState('');
   const [deleteIsError, setDeleteIsError] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copyMessage, setCopyMessage] = useState('');
+  const [copyIsError, setCopyIsError] = useState(false);
   const loadedPostId = useRef<string | string[] | undefined>(undefined);
 
   const fetchPost = useCallback(async () => {
@@ -87,6 +95,7 @@ export default function PostDetailPage() {
     setPost({
       ...data.post,
       comments: data.post.comments ?? [],
+      sources: data.post.sources ?? [],
     });
     setMessage('');
   }, [postId]);
@@ -123,6 +132,34 @@ export default function PostDetailPage() {
 
   const isAuthor =
     post != null && currentUserId != null && post.user.id === currentUserId;
+
+  const copyForCorrection = async () => {
+    if (!postId) {
+      return;
+    }
+
+    const token = localStorage.getItem('openpersona_token');
+
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    setIsCopying(true);
+    setCopyMessage('');
+    setCopyIsError(false);
+
+    try {
+      const data = await copyPostAsCorrection(String(postId));
+      router.push(`/posts/${data.post.id}/edit`);
+    } catch (error) {
+      setCopyMessage(
+        error instanceof Error ? error.message : 'コピーに失敗しました。',
+      );
+      setCopyIsError(true);
+      setIsCopying(false);
+    }
+  };
 
   const deletePost = async () => {
     const token = localStorage.getItem('openpersona_token');
@@ -244,20 +281,38 @@ export default function PostDetailPage() {
                 <span>付箋 {post.bookmark_count}</span>
               </div>
               {isAuthor && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    setDeleteMessage('');
-                    setDeleteIsError(false);
-                    setShowDeleteDialog(true);
-                  }}
-                >
-                  投稿を削除
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={copyForCorrection}
+                    disabled={isCopying}
+                  >
+                    {isCopying ? 'コピー中...' : 'コピーして訂正投稿を作成'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      setDeleteMessage('');
+                      setDeleteIsError(false);
+                      setShowDeleteDialog(true);
+                    }}
+                  >
+                    投稿を削除
+                  </Button>
+                </div>
               )}
             </div>
           </Card>
+
+          <PostSourcesList sources={post.sources ?? []} />
+
+          {isAuthor && copyMessage && (
+            <div className="mt-4">
+              <Alert message={copyMessage} variant={copyIsError ? 'error' : 'info'} />
+            </div>
+          )}
 
           <section className="mt-8">
             <h2 className="mb-4 text-lg font-semibold text-foreground">

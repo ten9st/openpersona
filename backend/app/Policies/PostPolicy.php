@@ -9,7 +9,12 @@ class PostPolicy
 {
     public function update(User $user, Post $post): bool
     {
-        return $this->owns($user, $post);
+        return $this->owns($user, $post) && $post->status === 'draft';
+    }
+
+    public function copy(User $user, Post $post): bool
+    {
+        return $this->owns($user, $post) && $post->status !== 'deleted';
     }
 
     public function delete(User $user, Post $post): bool
