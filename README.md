@@ -82,11 +82,15 @@ openpersona/
 ├── frontend/          # Next.js フロントエンド（:3000）
 │   ├── app/           # ページ（App Router）
 │   ├── components/    # UI コンポーネント
-│   └── lib/           # API ユーティリティ
+│   └── lib/           # API・投稿ソース・コピー等のユーティリティ
 ├── backend/           # Laravel API サーバー（:8000）
 │   ├── app/
-│   │   ├── Http/Controllers/   # Post, Comment, Profile
-│   │   └── Models/             # User, Profile, Post, Comment, Category, PostViewRecord
+│   │   ├── Http/Controllers/   # Post, Comment, Profile, PublicProfile, Category
+│   │   ├── Http/Requests/      # StorePostRequest, UpdatePostRequest
+│   │   ├── Models/             # User, Profile, Post, PostSource, TrustScore 等
+│   │   ├── Policies/           # PostPolicy
+│   │   ├── Services/           # TrustScoreService
+│   │   └── Observers/          # Post, PostSource, Profile, User
 │   ├── database/migrations/    # スキーマ定義
 │   ├── routes/api.php          # API ルート
 │   └── tests/Feature/          # 機能テスト
@@ -107,19 +111,23 @@ openpersona/
 |------|:-----------:|:--------:|
 | ユーザー登録（本名必須） | ✅ | ✅ |
 | ログイン（Sanctum トークン） | ✅ | ✅ |
+| ログアウト（トークン revoke） | ✅ | ✅ |
 | プロフィールの取得・更新 | ✅ | ✅ |
 | プロフィール公開設定（項目単位） | ✅ | ✅ |
 | 学歴・職歴の登録・公開設定 | ✅ | ✅ |
 | 他人の公開プロフィール閲覧 | ✅ | ✅ |
 | 信頼スコアの算出・表示 | ✅ | ✅ |
+| カテゴリ一覧 | ✅ | ✅ |
 | 投稿一覧（公開済みのみ） | ✅ | ✅ |
 | 投稿詳細（ゲスト閲覧可） | ✅ | ✅ |
 | 投稿作成（下書き / 公開） | ✅ | ✅ |
-| 下書き一覧 | ✅ | ✅ |
-| 投稿の更新 | ✅ | ✅ |
+| 投稿ソース（参考文献）の登録・表示 | ✅ | ✅ |
+| 下書き一覧・下書きの編集 | ✅ | ✅ |
+| 公開済み投稿のコピー（訂正用下書き作成） | ✅ | ✅ |
 | 投稿の削除（論理削除、投稿者のみ） | ✅ | ✅ |
 | コメント投稿・表示 | ✅ | ✅ |
 | 閲覧数カウント（重複排除） | ✅ | ✅ |
+| 本人確認済みバッジ表示 | ✅ | ✅ |
 
 ### DB スキーマのみ（API・UI 未実装）
 
@@ -127,11 +135,10 @@ openpersona/
 |------|----------|
 | 付箋（ブックマーク） | `bookmarks` |
 | フォロー | `follows` |
-| 投稿ソース（参考文献） | `post_sources` |
 | 投稿添付ファイル | `post_attachments` |
 | タグ | `tags`, `post_tags` |
-| 本人確認（申請・審査） | `identity_verifications`（verified バッジ表示のみ実装） |
-| カテゴリ CRUD / 一覧 API | `categories`（`DatabaseSeeder` で初期データ投入のみ） |
+| 本人確認（申請・審査フロー） | `identity_verifications`（`verified` バッジ表示のみ実装） |
+| カテゴリ CRUD（管理画面） | `categories`（一覧 API・Seeder 投入は実装済み） |
 
 詳細なテーブル定義は [`docs/db_design.md`](docs/db_design.md) を参照。
 
@@ -172,14 +179,17 @@ openpersona/
 
 - `users` レコード作成（本名・生年月日は必須）
 - `profiles` レコードを自動作成
-  - `display_*` = 本名
-  - `age_public: true`
-  - `full_name_public: false`
+- `profile_visibilities` をデフォルト値で作成（`first_name` / `biography` / `occupation` は非公開）
+
+### 認可
+
+- `PostPolicy` により投稿の更新・削除・コピーを制御
+  - **更新**: 投稿者本人かつ `status = draft` のみ
+  - **コピー**: 投稿者本人かつ `status !== deleted`
+  - **削除**: 投稿者本人
 
 ### 未実装
 
-- ログアウト API（フロントは `localStorage` のトークン削除のみ）
-- Policy / Gate による認可
 - メール認証
 
 ---
@@ -194,6 +204,7 @@ openpersona/
 |----------|------|:----:|------|
 | `POST` | `/api/register` | 不要 | 新規登録 |
 | `POST` | `/api/login` | 不要 | ログイン（セッション + トークン発行） |
+| `POST` | `/api/logout` | 必須 | ログアウト（現在のトークンを revoke） |
 | `GET` | `/api/me` | 必須 | 認証ユーザー取得 |
 
 #### `POST /api/register`
@@ -235,6 +246,23 @@ openpersona/
 
 **副作用:** セッション上の閲覧済み投稿記録をクリア
 
+#### `POST /api/logout`
+
+**レスポンス `200`:**
+```json
+{ "message": "ログアウトしました。" }
+```
+
+**副作用:** リクエストに付与された Personal Access Token を `personal_access_tokens` から削除
+
+---
+
+### カテゴリ
+
+| メソッド | パス | 認証 | 説明 |
+|----------|------|:----:|------|
+| `GET` | `/api/categories` | 不要 | カテゴリ一覧（`sort_order` 昇順） |
+
 ---
 
 ### 投稿
@@ -242,8 +270,12 @@ openpersona/
 | メソッド | パス | 認証 | 説明 |
 |----------|------|:----:|------|
 | `GET` | `/api/posts` | 不要 | 公開投稿一覧（ページネーション） |
-| `GET` | `/api/posts/{post}` | 任意 | 公開投稿詳細（コメント含む） |
+| `GET` | `/api/posts/drafts` | 必須 | 自分の下書き一覧 |
+| `GET` | `/api/posts/{post}` | 任意 | 投稿詳細（コメント・ソース含む） |
 | `POST` | `/api/posts` | 必須 | 投稿作成 |
+| `PUT` | `/api/posts/{post}` | 必須 | 下書きの更新・公開 |
+| `POST` | `/api/posts/{post}/copy` | 必須 | 訂正用に投稿を下書きコピー |
+| `DELETE` | `/api/posts/{post}` | 必須 | 投稿の論理削除 |
 
 #### `GET /api/posts`
 
@@ -281,7 +313,13 @@ openpersona/
 
 #### `GET /api/posts/{post}`
 
-**条件:** `status !== published` の場合 **404**
+**閲覧条件:**
+
+| `status` | ゲスト | 投稿者（Bearer） |
+|----------|--------|----------------|
+| `published` | 閲覧可 | 閲覧可 |
+| `draft` | **404** | 閲覧可 |
+| `deleted` | **404** | **404** |
 
 **レスポンス `200`:**
 ```json
@@ -290,8 +328,11 @@ openpersona/
     "id": 1,
     "title": "...", "body": "...",
     "view_count": 10, "bookmark_count": 0,
-    "user": { "id": 1, "last_name": "...", "first_name": "..." },
+    "user": { "id": 1, "last_name": "...", "first_name": "...", "trust_score": { "total_score": 0, "max_score": 50 } },
     "category": { "id": 1, "name": "...", "slug": "..." },
+    "sources": [
+      { "id": 1, "source_type": "url", "title": "参考記事", "url": "https://...", "note": null }
+    ],
     "comments": [
       {
         "id": 1, "post_id": 1, "user_id": 2, "body": "...",
@@ -303,7 +344,7 @@ openpersona/
 }
 ```
 
-コメントは `created_at` 昇順。
+コメントは `created_at` 昇順。公開済み投稿の閲覧時に `view_count` を加算（[閲覧数カウント仕様](#閲覧数カウント仕様) 参照）。
 
 #### `POST /api/posts`
 
@@ -313,7 +354,15 @@ openpersona/
   "category_id": 1,
   "title": "タイトル",
   "body": "本文",
-  "status": "published"
+  "status": "published",
+  "sources": [
+    {
+      "source_type": "url",
+      "title": "参考記事",
+      "url": "https://example.com/article",
+      "note": "一次情報"
+    }
+  ]
 }
 ```
 
@@ -323,8 +372,42 @@ openpersona/
 | `title` | ✅ | 最大 255 文字 |
 | `body` | ✅ | 本文 |
 | `status` | — | `draft` または `published`（省略時: `draft`） |
+| `sources` | — | 参考文献の配列（省略可） |
+| `sources.*.source_type` | ✅※ | `url` / `book` / `paper` / `government_document` / `other` |
+| `sources.*.title` | — | タイトル |
+| `sources.*.url` | — | URL |
+| `sources.*.note` | — | 補足 |
+
+※ `sources` を送る場合は各要素に必須
 
 `status = published` の場合、`published_at` に現在日時を設定。
+
+#### `PUT /api/posts/{post}`
+
+**条件:** 投稿者本人かつ `status = draft` のみ（公開済みは **403**）
+
+`POST /api/posts` と同様のフィールド。`sources` を送った場合は全件差し替え（空配列で全削除）。
+
+#### `POST /api/posts/{post}/copy`
+
+**条件:** 投稿者本人かつ `status !== deleted`
+
+公開済み・下書きを複製し、**新しい下書き**を作成する。タイトル先頭に `【訂正】` を付与（既にある場合はそのまま）。本文・カテゴリ・`post_sources` をコピー。元投稿は変更しない。
+
+**レスポンス `201`:**
+```json
+{
+  "message": "訂正用の下書きを作成しました。内容を確認して公開してください。",
+  "copied_from_post_id": 1,
+  "post": { "id": 2, "status": "draft", "title": "【訂正】...", "sources": [] }
+}
+```
+
+#### `DELETE /api/posts/{post}`
+
+**条件:** 投稿者本人
+
+**副作用:** `status` を `deleted` に更新（物理削除ではない）
 
 ---
 
@@ -359,21 +442,46 @@ openpersona/
 |----------|------|:----:|------|
 | `GET` | `/api/profile` | 必須 | プロフィール取得（なければ自動作成） |
 | `PUT` | `/api/profile` | 必須 | プロフィール更新 |
+| `GET` | `/api/users/{user}` | 不要 | 他人の公開プロフィール取得 |
 
-**PUT リクエスト:**
+**PUT リクエスト（抜粋）:**
 ```json
 {
-  "display_last_name": "山田",
-  "display_first_name": "太郎",
-  "age_public": true,
-  "full_name_public": false,
+  "last_name": "山田",
+  "first_name": "太郎",
+  "birthdate": "1990-01-01",
   "biography": "自己紹介文",
   "occupation": "エンジニア",
-  "occupation_public": true,
   "region": "東京都",
-  "region_public": false
+  "visibilities": {
+    "first_name": false,
+    "biography": true,
+    "occupation": true
+  },
+  "educations": [
+    {
+      "school_name": "東京大学",
+      "faculty": "工学部",
+      "degree": "学士",
+      "start_year": 2010,
+      "end_year": 2014,
+      "is_public": true
+    }
+  ],
+  "careers": [
+    {
+      "company_name": "A社",
+      "position": "エンジニア",
+      "start_year": 2015,
+      "end_year": null,
+      "is_current": true,
+      "is_public": false
+    }
+  ]
 }
 ```
+
+本人確認済みユーザーは姓・名・生年月日・メールアドレスの変更不可（`meta.basic_info_locked: true`）。
 
 ---
 
@@ -410,15 +518,23 @@ openpersona/
 | `/register` | 不要 | 新規登録 |
 | `/login` | 不要 | ログイン |
 | `/posts` | 不要（閲覧） | 投稿一覧（ゲストも閲覧可） |
-| `/posts/[id]` | 不要（閲覧） | 投稿詳細・コメント表示 |
-| `/posts/create` | 必須 | 投稿作成 |
+| `/posts/[id]` | 不要（閲覧） | 投稿詳細・コメント・参考文献表示 |
+| `/posts/create` | 必須 | 投稿作成（カテゴリ選択・参考文献入力） |
+| `/posts/drafts` | 必須 | 下書き一覧 |
+| `/posts/[id]/edit` | 必須 | 下書き編集（公開済みはコピー導線のみ） |
+| `/users/[id]` | 不要 | 公開プロフィール閲覧 |
 | `/profile` | 必須 | プロフィール編集 |
 
 ### ゲスト / ログイン済みの挙動
 
-- **ゲスト**: 投稿一覧・詳細の閲覧が可能。コメント・投稿作成はログインを促す
-- **ログイン済み**: 投稿作成、コメント投稿、プロフィール編集が可能
-- **ログアウト**: `localStorage` からトークンを削除（サーバー側 API なし）
+- **ゲスト**: 投稿一覧・詳細・公開プロフィールの閲覧が可能。コメント・投稿作成はログインを促す
+- **ログイン済み**: 投稿作成、下書き編集、コメント投稿、プロフィール編集が可能
+- **ログアウト**: `POST /api/logout` でトークン revoke 後、`localStorage` からトークンを削除（投稿一覧ページから操作可能）
+
+### 投稿の編集ポリシー（フロント）
+
+- **下書き**: `/posts/[id]/edit` で編集・公開
+- **公開済み**: 直接編集不可。「コピーして訂正投稿を作成」で `【訂正】` 付き下書きを作成し、編集後に新規公開
 
 ### API 呼び出し
 
@@ -426,9 +542,12 @@ openpersona/
 |--------|----------|
 | `/register` | `POST /api/register` |
 | `/login` | `GET /sanctum/csrf-cookie` → `POST /api/login` |
-| `/posts` | `GET /api/posts` |
-| `/posts/[id]` | `GET /api/posts/{id}`（`credentials: 'include'`）、`POST .../comments` |
-| `/posts/create` | `POST /api/posts`（`category_id: 1` 固定） |
+| `/posts` | `GET /api/posts`、`POST /api/logout` |
+| `/posts/[id]` | `GET /api/posts/{id}`（`credentials: 'include'`）、`POST .../comments`、`POST .../copy`、`DELETE ...` |
+| `/posts/create` | `GET /api/categories` → `POST /api/posts` |
+| `/posts/drafts` | `GET /api/posts/drafts` |
+| `/posts/[id]/edit` | `GET /api/posts/{id}` → `PUT /api/posts/{id}` |
+| `/users/[id]` | `GET /api/users/{id}` |
 | `/profile` | `GET` / `PUT /api/profile` |
 
 ---
@@ -439,19 +558,25 @@ openpersona/
 
 ```
 users 1──1 profiles
-users 1──n posts
-users 1──n comments
+users 1──1 trust_scores
+users 1──n posts, comments, user_educations, user_careers
+users 1──n profile_visibilities, identity_verifications
 
 posts n──1 categories
-posts 1──n comments
-posts 1──n post_view_records
+posts 1──n comments, post_sources, post_view_records
 ```
 
 | モデル | テーブル | 主要リレーション |
 |--------|----------|------------------|
-| `User` | `users` | `hasOne(Profile)`, `HasApiTokens` |
+| `User` | `users` | `hasOne(Profile)`, `hasOne(TrustScore)`, `hasMany(Post)`, `HasApiTokens` |
 | `Profile` | `profiles` | `belongsTo(User)` |
-| `Post` | `posts` | `belongsTo(User)`, `belongsTo(Category)`, `hasMany(Comment)` |
+| `ProfileVisibility` | `profile_visibilities` | `belongsTo(User)` |
+| `UserEducation` | `user_educations` | `belongsTo(User)` |
+| `UserCareer` | `user_careers` | `belongsTo(User)` |
+| `TrustScore` | `trust_scores` | `belongsTo(User)` |
+| `IdentityVerification` | `identity_verifications` | `belongsTo(User)` |
+| `Post` | `posts` | `belongsTo(User)`, `belongsTo(Category)`, `hasMany(Comment)`, `hasMany(PostSource)` |
+| `PostSource` | `post_sources` | `belongsTo(Post)` |
 | `Comment` | `comments` | `belongsTo(Post)`, `belongsTo(User)` |
 | `Category` | `categories` | — |
 | `PostViewRecord` | `post_view_records` | — |
@@ -464,18 +589,22 @@ posts 1──n post_view_records
 
 | 値 | 説明 |
 |----|------|
-| `draft` | 下書き（API では非公開） |
-| `published` | 公開 |
-| `deleted` | 削除（API 未実装） |
+| `draft` | 下書き（投稿者のみ閲覧・編集可） |
+| `published` | 公開（編集不可。コピーで訂正用下書きを作成） |
+| `deleted` | 論理削除（一覧・詳細から非表示） |
+
+### 信頼スコア（`TrustScoreService`）
+
+`profile_score` + `posting_score` + `source_score` + `history_score` の合計を `total_score` として保持。上限は本人確認前 50・後 100。算出ロジックは `config/trust_score.php` を参照。
+
+`source_score` は公開投稿のうち `post_sources` を 1 件以上持つ割合（25% / 50% / 75% 閾値）で加点。
 
 ### 将来テーブル（ER 概要）
 
 ```
-users 1──n bookmarks, user_educations, user_careers, identity_verifications
-users 1──1 trust_scores
-users 1──n follows (follower / followed)
+users 1──n bookmarks, follows (follower / followed)
 
-posts 1──n post_sources, post_attachments
+posts 1──n post_attachments
 posts n──n tags (post_tags)
 ```
 
@@ -546,7 +675,7 @@ cd backend
 composer test
 ```
 
-Feature テスト: `PostTest`, `CommentTest`, `ProfileTest`（認証・閲覧数・下書き非公開など）
+Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `PublicProfileTest`, `CategoryTest`, `TrustScoreSourceTest` など（計 53 件）
 
 ---
 
@@ -575,8 +704,8 @@ Feature テスト: `PostTest`, `CommentTest`, `ProfileTest`（認証・閲覧数
 
 ## 既知の制限・未対応事項
 
-1. **カテゴリ選択 UI 未実装** — `php artisan db:seed` で初期データは投入できるが、カテゴリ一覧 API がなくフロントは `category_id: 1` 固定
-2. **ログアウト API** 未実装（フロントは `localStorage` のトークン削除のみ）
-3. **本人確認** — DB 上の verified ステータスをバッジ表示するのみ。申請・審査フローは未実装
-4. コメント削除、付箋・フォロー、投稿ソース・添付・タグなどは未実装
-5. **PostPolicy** は投稿削除のみ適用（更新はコントローラ内チェック）。Form Request クラスは未使用
+1. **ログアウト UI** — 投稿一覧ページのみ。プロフィール等の全画面共通ナビは未整備
+2. **本人確認** — `identity_verifications` の `verified` バッジ表示のみ。申請・審査フローは未実装
+3. **カテゴリ管理** — 一覧 API・Seeder 投入はあるが、管理画面による CRUD は未実装
+4. コメント削除、付箋・フォロー、投稿添付・タグは未実装
+5. 訂正投稿と元投稿の紐付け（`copied_from_post_id` は API レスポンスのみ。DB カラムは未保持）
