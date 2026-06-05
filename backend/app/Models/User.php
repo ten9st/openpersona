@@ -83,6 +83,16 @@ class User extends Authenticatable
         return $this->hasMany(Bookmark::class);
     }
 
+    public function followerRecords()
+    {
+        return $this->hasMany(Follow::class, 'followed_user_id');
+    }
+
+    public function followingRecords()
+    {
+        return $this->hasMany(Follow::class, 'follower_user_id');
+    }
+
     public function isIdentityVerified(): bool
     {
         return $this->identityVerifications()
