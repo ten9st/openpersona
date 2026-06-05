@@ -82,6 +82,7 @@ export default function PostsPage() {
             </NavLink>
             <NavLink href="/posts/drafts">下書き一覧</NavLink>
             <NavLink href="/bookmarks">付箋一覧</NavLink>
+            <NavLink href="/timeline">タイムライン</NavLink>
             <NavLink href="/profile">プロフィール編集</NavLink>
             <Button variant="ghost" onClick={logout}>
               ログアウト

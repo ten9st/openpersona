@@ -16,7 +16,6 @@ type Post = {
   view_count: number;
   bookmark_count: number;
   published_at: string | null;
-  is_bookmarked?: boolean;
   user: PostAuthor;
   category: {
     id: number;
@@ -24,7 +23,7 @@ type Post = {
   };
 };
 
-export default function BookmarksPage() {
+export default function TimelinePage() {
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState('');
@@ -38,18 +37,18 @@ export default function BookmarksPage() {
       return;
     }
 
-    const fetchBookmarks = async () => {
+    const fetchTimeline = async () => {
       setMessage('読み込み中...');
       setIsError(false);
 
-      const res = await fetch(`${API_BASE}/api/bookmarks`, {
+      const res = await fetch(`${API_BASE}/api/timeline`, {
         headers: authHeaders(token),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage('付箋一覧の取得に失敗しました。');
+        setMessage('タイムラインの取得に失敗しました。');
         setIsError(true);
         return;
       }
@@ -58,22 +57,19 @@ export default function BookmarksPage() {
       setMessage('');
     };
 
-    fetchBookmarks();
+    fetchTimeline();
   }, [router]);
 
   return (
     <PageShell maxWidth="xl">
       <PageHeader
-        title="付箋一覧"
-        description="あとで読みたい投稿をまとめて表示します"
+        title="タイムライン"
+        description="フォローしているユーザーの投稿を新着順で表示します"
       />
 
       <ActionBar>
         <NavLink href="/posts">投稿一覧</NavLink>
-        <NavLink href="/timeline">タイムライン</NavLink>
-        <NavLink href="/posts/create" variant="primary">
-          投稿する
-        </NavLink>
+        <NavLink href="/bookmarks">付箋一覧</NavLink>
       </ActionBar>
 
       {message && (
@@ -85,7 +81,9 @@ export default function BookmarksPage() {
       <div className="grid gap-4">
         {posts.length === 0 && !message && (
           <Card>
-            <p className="text-center text-muted">まだ付箋した投稿がありません。</p>
+            <p className="text-center text-muted">
+              フォローしているユーザーがいません。
+            </p>
           </Card>
         )}
 

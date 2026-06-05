@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Follow;
 use App\Models\ProfileVisibility;
 use App\Models\TrustScore;
 use App\Models\User;
@@ -35,7 +36,7 @@ class PublicProfilePresenter
     /**
      * @return array<string, mixed>
      */
-    public static function detail(User $user): array
+    public static function detail(User $user, ?User $viewer = null): array
     {
         self::loadDetailRelations($user);
 
@@ -49,7 +50,7 @@ class PublicProfilePresenter
             ? $user->profile?->occupation
             : null;
 
-        return [
+        $payload = [
             'user' => [
                 'id' => $user->id,
                 'last_name' => $user->last_name,
@@ -65,6 +66,12 @@ class PublicProfilePresenter
             ],
             'trust_score' => $trustScore->toPublicArray(),
             'identity_verified' => $user->isIdentityVerified(),
+            'followers_count' => Follow::query()
+                ->where('followed_user_id', $user->id)
+                ->count(),
+            'following_count' => Follow::query()
+                ->where('follower_user_id', $user->id)
+                ->count(),
             'educations' => $user->educations->map(fn (UserEducation $e) => [
                 'school_name' => $e->school_name,
                 'faculty' => $e->faculty,
@@ -80,6 +87,15 @@ class PublicProfilePresenter
                 'is_current' => $c->is_current,
             ])->values(),
         ];
+
+        if ($viewer !== null) {
+            $payload['is_following'] = Follow::query()
+                ->where('follower_user_id', $viewer->id)
+                ->where('followed_user_id', $user->id)
+                ->exists();
+        }
+
+        return $payload;
     }
 
     private static function loadSummaryRelations(User $user): void
