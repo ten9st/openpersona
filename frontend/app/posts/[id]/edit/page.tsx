@@ -15,6 +15,7 @@ import { copyPostAsCorrection } from '@/lib/post-copy';
 import {
   fromApiPostSource,
   toApiPostSources,
+  validatePostSources,
   type PostSourceInput,
 } from '@/lib/post-source';
 
@@ -132,6 +133,14 @@ export default function EditPostPage() {
 
     if (!categoryId) {
       setMessage('カテゴリを選択してください。');
+      setIsError(true);
+      return;
+    }
+
+    const sourceValidationError = validatePostSources(sources);
+
+    if (sourceValidationError) {
+      setMessage(sourceValidationError);
       setIsError(true);
       return;
     }

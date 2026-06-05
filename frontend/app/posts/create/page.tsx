@@ -11,7 +11,11 @@ import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { PostSourcesEditor } from '@/components/post-sources-editor';
 import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
-import { toApiPostSources, type PostSourceInput } from '@/lib/post-source';
+import {
+  toApiPostSources,
+  validatePostSources,
+  type PostSourceInput,
+} from '@/lib/post-source';
 
 type Category = {
   id: number;
@@ -71,6 +75,14 @@ export default function CreatePostPage() {
 
     if (!categoryId) {
       setMessage('カテゴリを選択してください。');
+      setIsError(true);
+      return;
+    }
+
+    const sourceValidationError = validatePostSources(sources);
+
+    if (sourceValidationError) {
+      setMessage(sourceValidationError);
       setIsError(true);
       return;
     }
