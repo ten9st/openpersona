@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PostController;
@@ -94,12 +95,15 @@ Route::middleware('auth:sanctum')->post('/logout', function (Request $request) {
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/posts', [PostController::class, 'index']);
 Route::get('/users/{user}', [PublicProfileController::class, 'show']);
+Route::middleware('auth:sanctum')->get('/bookmarks', [BookmarkController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
 Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/copy', [PostController::class, 'copy']);
 Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
 Route::middleware('auth:sanctum')->delete('/posts/{post}', [PostController::class, 'destroy']);
+Route::middleware('auth:sanctum')->post('/posts/{post}/bookmark', [BookmarkController::class, 'store']);
+Route::middleware('auth:sanctum')->delete('/posts/{post}/bookmark', [BookmarkController::class, 'destroy']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
 Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);

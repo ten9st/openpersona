@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
 import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { logout as apiLogout } from '@/lib/api';
+import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 import { type PostAuthor } from '@/lib/post-author';
 
 type Post = {
@@ -17,81 +16,63 @@ type Post = {
   view_count: number;
   bookmark_count: number;
   published_at: string | null;
-
+  is_bookmarked?: boolean;
   user: PostAuthor;
-
   category: {
     id: number;
     name: string;
   };
 };
 
-export default function PostsPage() {
+export default function BookmarksPage() {
   const router = useRouter();
-
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const logout = async () => {
-    await apiLogout();
-    setIsLoggedIn(false);
-    router.push('/login');
-  };
+  useEffect(() => {
+    const token = getAuthToken();
 
-  const fetchPosts = async () => {
-    setMessage('読み込み中...');
-    setIsError(false);
-
-    const res = await fetch('http://localhost:8000/api/posts', {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setMessage('投稿一覧取得に失敗しました。');
-      setIsError(true);
+    if (!token) {
+      router.push('/login');
       return;
     }
 
-    setPosts(data.posts);
-    setMessage('');
-  };
+    const fetchBookmarks = async () => {
+      setMessage('読み込み中...');
+      setIsError(false);
 
-  useEffect(() => {
-    setIsLoggedIn(Boolean(localStorage.getItem('openpersona_token')));
-    fetchPosts();
-  }, []);
+      const res = await fetch(`${API_BASE}/api/bookmarks`, {
+        headers: authHeaders(token),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage('付箋一覧の取得に失敗しました。');
+        setIsError(true);
+        return;
+      }
+
+      setPosts(data.posts ?? []);
+      setMessage('');
+    };
+
+    fetchBookmarks();
+  }, [router]);
 
   return (
     <PageShell maxWidth="xl">
       <PageHeader
-        title="投稿一覧"
-        description="みんなの投稿を読んで、信頼できる情報を見つけましょう"
+        title="付箋一覧"
+        description="あとで読みたい投稿をまとめて表示します"
       />
 
       <ActionBar>
-        {isLoggedIn ? (
-          <>
-            <NavLink href="/posts/create" variant="primary">
-              投稿する
-            </NavLink>
-            <NavLink href="/posts/drafts">下書き一覧</NavLink>
-            <NavLink href="/bookmarks">付箋一覧</NavLink>
-            <NavLink href="/profile">プロフィール編集</NavLink>
-            <Button variant="ghost" onClick={logout}>
-              ログアウト
-            </Button>
-          </>
-        ) : (
-          <NavLink href="/login" variant="primary">
-            ログインして投稿する
-          </NavLink>
-        )}
+        <NavLink href="/posts">投稿一覧</NavLink>
+        <NavLink href="/posts/create" variant="primary">
+          投稿する
+        </NavLink>
       </ActionBar>
 
       {message && (
@@ -103,7 +84,7 @@ export default function PostsPage() {
       <div className="grid gap-4">
         {posts.length === 0 && !message && (
           <Card>
-            <p className="text-center text-muted">まだ投稿がありません。</p>
+            <p className="text-center text-muted">まだ付箋した投稿がありません。</p>
           </Card>
         )}
 

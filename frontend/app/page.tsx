@@ -6,6 +6,7 @@ const links = [
   { href: '/login', label: 'ログイン', description: 'アカウントにサインイン' },
   { href: '/register', label: '新規登録', description: '新しいアカウントを作成' },
   { href: '/posts', label: '投稿一覧', description: 'みんなの投稿を読む' },
+  { href: '/bookmarks', label: '付箋一覧', description: 'あとで読みたい投稿' },
   {
     href: '/profile',
     label: 'プロフィール編集',
