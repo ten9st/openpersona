@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
+use App\Models\Bookmark;
 use App\Models\Post;
 use App\Models\PostSource;
 use App\Models\PostViewRecord;
 use App\Models\User;
+use App\Support\PostListPresenter;
 use App\Support\PublicProfilePresenter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -89,25 +91,9 @@ class PostController extends Controller
         $perPage = $validated['per_page'] ?? 20;
 
         $query = Post::query()
-            ->select([
-                'id',
-                'user_id',
-                'category_id',
-                'title',
-                'view_count',
-                'bookmark_count',
-                'published_at',
-                'created_at',
-                'updated_at',
-            ])
-            ->with([
-                'user:id,last_name,first_name,birthdate',
-                'user.profile:id,user_id,region',
-                'user.profileVisibilities' => fn ($query) => $query
-                    ->select(['id', 'user_id', 'field_name', 'is_public'])
-                    ->where('field_name', 'first_name'),
-                'category:id,name,slug',
-            ])
+            ->select(PostListPresenter::selectColumns())
+            ->withCount(['bookmarks as bookmark_count'])
+            ->with(PostListPresenter::eagerLoads())
             ->where('status', '!=', 'deleted')
             ->where('status', 'published')
             ->latest('published_at');
@@ -118,12 +104,9 @@ class PostController extends Controller
 
         $posts = $query->paginate($perPage);
 
-        $items = collect($posts->items())->map(function (Post $post) {
-            $postArray = $post->toArray();
-            $postArray['user'] = $this->formatAuthorForList($post->user);
-
-            return $postArray;
-        })->all();
+        $items = collect($posts->items())
+            ->map(fn (Post $post) => PostListPresenter::format($post))
+            ->all();
 
         return response()->json([
             'posts' => $items,
@@ -177,6 +160,7 @@ class PostController extends Controller
             $this->recordPostView($request, $post, $accessToken);
         }
 
+        $post->loadCount(['bookmarks as bookmark_count']);
         $post->load([
             'user:id,last_name,first_name,birthdate',
             'user.profile:id,user_id,region',
@@ -208,6 +192,14 @@ class PostController extends Controller
 
             return $commentArray;
         })->all();
+
+        if ($accessToken !== null
+            && $accessToken->tokenable_type === User::class) {
+            $postArray['is_bookmarked'] = Bookmark::query()
+                ->where('user_id', $accessToken->tokenable_id)
+                ->where('post_id', $post->id)
+                ->exists();
+        }
 
         return response()->json([
             'post' => $postArray,

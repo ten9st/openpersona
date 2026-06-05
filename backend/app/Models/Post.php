@@ -38,4 +38,9 @@ class Post extends Model
     {
         return $this->hasMany(PostSource::class);
     }
+
+    public function bookmarks()
+    {
+        return $this->hasMany(Bookmark::class);
+    }
 }

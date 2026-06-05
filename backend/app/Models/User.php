@@ -78,6 +78,11 @@ class User extends Authenticatable
         return $this->hasMany(IdentityVerification::class);
     }
 
+    public function bookmarks()
+    {
+        return $this->hasMany(Bookmark::class);
+    }
+
     public function isIdentityVerified(): bool
     {
         return $this->identityVerifications()

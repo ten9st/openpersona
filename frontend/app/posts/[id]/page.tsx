@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PostSourcesList } from '@/components/post-sources-list';
 import { API_BASE } from '@/lib/api';
+import { addBookmark, removeBookmark } from '@/lib/bookmark';
 import { copyPostAsCorrection } from '@/lib/post-copy';
 import { type PostAuthor } from '@/lib/post-author';
 import { type PostSource } from '@/lib/post-source';
@@ -29,6 +30,7 @@ type Post = {
   body: string;
   view_count: number;
   bookmark_count: number;
+  is_bookmarked?: boolean;
   published_at: string | null;
   comments: Comment[];
 
@@ -64,6 +66,11 @@ export default function PostDetailPage() {
   const [isCopying, setIsCopying] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
   const [copyIsError, setCopyIsError] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [isTogglingBookmark, setIsTogglingBookmark] = useState(false);
+  const [bookmarkMessage, setBookmarkMessage] = useState('');
+  const [bookmarkIsError, setBookmarkIsError] = useState(false);
   const loadedPostId = useRef<string | string[] | undefined>(undefined);
 
   const fetchPost = useCallback(async () => {
@@ -97,6 +104,8 @@ export default function PostDetailPage() {
       comments: data.post.comments ?? [],
       sources: data.post.sources ?? [],
     });
+    setBookmarkCount(data.post.bookmark_count ?? 0);
+    setIsBookmarked(Boolean(data.post.is_bookmarked));
     setMessage('');
   }, [postId]);
 
@@ -132,6 +141,48 @@ export default function PostDetailPage() {
 
   const isAuthor =
     post != null && currentUserId != null && post.user.id === currentUserId;
+
+  const toggleBookmark = async () => {
+    if (!postId) {
+      return;
+    }
+
+    const token = localStorage.getItem('openpersona_token');
+
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    setIsTogglingBookmark(true);
+    setBookmarkMessage('');
+    setBookmarkIsError(false);
+
+    try {
+      const data = isBookmarked
+        ? await removeBookmark(String(postId))
+        : await addBookmark(String(postId));
+
+      setIsBookmarked(data.is_bookmarked);
+      setBookmarkCount(data.bookmark_count);
+      setPost((current) =>
+        current
+          ? {
+              ...current,
+              bookmark_count: data.bookmark_count,
+              is_bookmarked: data.is_bookmarked,
+            }
+          : current,
+      );
+    } catch (error) {
+      setBookmarkMessage(
+        error instanceof Error ? error.message : '付箋の操作に失敗しました。',
+      );
+      setBookmarkIsError(true);
+    } finally {
+      setIsTogglingBookmark(false);
+    }
+  };
 
   const copyForCorrection = async () => {
     if (!postId) {
@@ -276,9 +327,32 @@ export default function PostDetailPage() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-              <div className="flex gap-4 text-xs text-muted">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
                 <span>閲覧 {post.view_count}</span>
-                <span>付箋 {post.bookmark_count}</span>
+                <div className="flex items-center gap-2">
+                  {isLoggedIn ? (
+                    <button
+                      type="button"
+                      onClick={toggleBookmark}
+                      disabled={isTogglingBookmark}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ${
+                        isBookmarked
+                          ? 'text-primary'
+                          : 'text-muted hover:text-foreground'
+                      }`}
+                      aria-pressed={isBookmarked}
+                      aria-label={isBookmarked ? '付箋を解除' : '付箋を追加'}
+                    >
+                      <span aria-hidden>🔖</span>
+                      <span>{bookmarkCount}</span>
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-sm">
+                      <span aria-hidden>🔖</span>
+                      <span>{bookmarkCount}</span>
+                    </span>
+                  )}
+                </div>
               </div>
               {isAuthor && (
                 <div className="flex flex-wrap gap-2">
@@ -307,6 +381,15 @@ export default function PostDetailPage() {
           </Card>
 
           <PostSourcesList sources={post.sources ?? []} />
+
+          {bookmarkMessage && (
+            <div className="mt-4">
+              <Alert
+                message={bookmarkMessage}
+                variant={bookmarkIsError ? 'error' : 'info'}
+              />
+            </div>
+          )}
 
           {isAuthor && copyMessage && (
             <div className="mt-4">
