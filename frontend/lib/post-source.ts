@@ -43,6 +43,28 @@ export function createEmptyPostSource(): PostSourceInput {
   };
 }
 
+export const HTTP_ONLY_URL_PATTERN = /^https?:\/\/.+/i;
+
+export function isAllowedPostSourceUrl(url: string): boolean {
+  const trimmed = url.trim();
+
+  if (trimmed === '') {
+    return true;
+  }
+
+  return HTTP_ONLY_URL_PATTERN.test(trimmed);
+}
+
+export function validatePostSources(sources: PostSourceInput[]): string | null {
+  for (const source of sources) {
+    if (!isAllowedPostSourceUrl(source.url)) {
+      return '参考文献のURLは http:// または https:// で始めてください。';
+    }
+  }
+
+  return null;
+}
+
 export function postSourceHasContent(source: PostSourceInput): boolean {
   return (
     source.title.trim() !== '' ||

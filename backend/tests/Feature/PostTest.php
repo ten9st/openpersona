@@ -304,6 +304,41 @@ class PostTest extends TestCase
             ->assertJsonPath('post.sources.0.note', '第3章');
     }
 
+    public function test_post_source_url_must_use_http_or_https(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '危険なURL',
+            'body' => '本文',
+            'status' => 'draft',
+            'sources' => [
+                [
+                    'source_type' => 'url',
+                    'url' => 'javascript:alert(1)',
+                ],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['sources.0.url']);
+
+        $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '有効なURL',
+            'body' => '本文',
+            'status' => 'draft',
+            'sources' => [
+                [
+                    'source_type' => 'url',
+                    'url' => 'https://example.com/safe',
+                ],
+            ],
+        ])->assertCreated();
+    }
+
     public function test_author_can_replace_sources_on_update(): void
     {
         $user = User::factory()->create();

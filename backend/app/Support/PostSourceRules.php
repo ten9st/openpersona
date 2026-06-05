@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\PostSource;
+use App\Rules\HttpOnlyUrl;
 use Illuminate\Validation\Rule;
 
 class PostSourceRules
@@ -28,7 +29,7 @@ class PostSourceRules
         return [
             'sources.*.source_type' => ['required', 'string', Rule::in(PostSource::TYPES)],
             'sources.*.title' => ['nullable', 'string', 'max:255'],
-            'sources.*.url' => ['nullable', 'string', 'max:2048'],
+            'sources.*.url' => ['nullable', 'string', 'max:2048', new HttpOnlyUrl],
             'sources.*.note' => ['nullable', 'string'],
         ];
     }

@@ -1,4 +1,5 @@
 import {
+  isAllowedPostSourceUrl,
   POST_SOURCE_TYPE_LABELS,
   type PostSource,
   type PostSourceType,
@@ -31,16 +32,19 @@ export function PostSourcesList({ sources }: PostSourcesListProps) {
             <p className="mt-1 text-xs text-muted">
               {POST_SOURCE_TYPE_LABELS[source.source_type as PostSourceType]}
             </p>
-            {source.url?.trim() && (
-              <a
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 block break-all text-primary hover:underline"
-              >
-                {source.url}
-              </a>
-            )}
+            {source.url?.trim() &&
+              (isAllowedPostSourceUrl(source.url) ? (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 block break-all text-primary hover:underline"
+                >
+                  {source.url}
+                </a>
+              ) : (
+                <p className="mt-2 break-all text-muted">{source.url}</p>
+              ))}
             {source.note?.trim() && (
               <p className="mt-2 whitespace-pre-wrap text-foreground/80">{source.note}</p>
             )}
