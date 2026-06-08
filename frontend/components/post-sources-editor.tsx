@@ -37,7 +37,7 @@ export function PostSourcesEditor({ sources, onChange }: PostSourcesEditorProps)
       <div>
         <p className="text-sm font-medium text-foreground">参考文献・情報ソース</p>
         <p className="mt-1 text-xs text-muted">
-          根拠となる URL・書籍・論文などを登録すると、信頼スコアの算出に反映されます。
+          根拠となる URL・書籍・論文などを登録すると、透明性スコアの算出に反映されます。
         </p>
       </div>
 

@@ -374,7 +374,7 @@ export default function ProfilePage() {
             )}
             {trustScore && (
               <p className="text-sm text-muted">
-                信頼スコア: {formatTrustScore(trustScore)}
+                透明性スコア: {formatTrustScore(trustScore)}
               </p>
             )}
 

@@ -116,7 +116,7 @@ openpersona/
 | プロフィール公開設定（項目単位） | ✅ | ✅ |
 | 学歴・職歴の登録・公開設定 | ✅ | ✅ |
 | 他人の公開プロフィール閲覧 | ✅ | ✅ |
-| 信頼スコアの算出・表示 | ✅ | ✅ |
+| 透明性スコアの算出・表示 | ✅ | ✅ |
 | カテゴリ一覧 | ✅ | ✅ |
 | 投稿一覧（公開済みのみ） | ✅ | ✅ |
 | 投稿詳細（ゲスト閲覧可） | ✅ | ✅ |
@@ -593,7 +593,7 @@ posts 1──n comments, post_sources, post_view_records
 | `published` | 公開（編集不可。コピーで訂正用下書きを作成） |
 | `deleted` | 論理削除（一覧・詳細から非表示） |
 
-### 信頼スコア（`TrustScoreService`）
+### 透明性スコア（`TrustScoreService`）
 
 `profile_score` + `posting_score` + `source_score` + `history_score` の合計を `total_score` として保持。上限は本人確認前 50・後 100。算出ロジックは `config/trust_score.php` を参照。
 
