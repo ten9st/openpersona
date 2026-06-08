@@ -15,7 +15,7 @@ export function UserCard({ user }: UserCardProps) {
           <AuthorLink user={user} className="font-medium text-foreground" />
           {user.trust_score && (
             <span className="text-xs text-muted">
-              信頼スコア {formatTrustScore(user.trust_score)}
+              透明性スコア {formatTrustScore(user.trust_score)}
             </span>
           )}
         </div>

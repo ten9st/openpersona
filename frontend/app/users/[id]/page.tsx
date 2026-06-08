@@ -264,7 +264,7 @@ export default function PublicProfilePage() {
 
             <dl className="mt-4 grid gap-3 text-sm">
               <div className="flex flex-wrap gap-x-2">
-                <dt className="font-medium text-muted">信頼スコア</dt>
+                <dt className="font-medium text-muted">透明性スコア</dt>
                 <dd className="text-foreground">
                   {formatTrustScore(profile.trust_score)}
                 </dd>
