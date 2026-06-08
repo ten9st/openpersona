@@ -9,6 +9,7 @@ use App\Models\Post;
 use App\Models\PostSource;
 use App\Models\PostViewRecord;
 use App\Models\User;
+use App\Support\PostAttachmentPresenter;
 use App\Support\PostListPresenter;
 use App\Support\PublicProfilePresenter;
 use Carbon\Carbon;
@@ -169,6 +170,7 @@ class PostController extends Controller
                 ->where('field_name', 'first_name'),
             'category:id,name,slug',
             'sources',
+            'attachments',
             'comments' => fn ($query) => $query
                 ->whereHas('post', fn ($postQuery) => $postQuery->where('status', '!=', 'deleted'))
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
@@ -186,6 +188,10 @@ class PostController extends Controller
         $postArray = $post->toArray();
         $postArray['user'] = $this->formatAuthorForList($post->user);
         $postArray['sources'] = $this->formatSources($post->sources);
+        $postArray['attachments'] = $post->attachments
+            ->map(fn ($attachment) => PostAttachmentPresenter::format($attachment))
+            ->values()
+            ->all();
         $postArray['comments'] = collect($post->comments)->map(function ($comment) {
             $commentArray = $comment->toArray();
             $commentArray['user'] = PublicProfilePresenter::summary($comment->user);

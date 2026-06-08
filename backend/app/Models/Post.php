@@ -43,4 +43,9 @@ class Post extends Model
     {
         return $this->hasMany(Bookmark::class);
     }
+
+    public function attachments()
+    {
+        return $this->hasMany(PostAttachment::class);
+    }
 }

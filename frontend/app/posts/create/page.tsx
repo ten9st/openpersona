@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
+import { PostAttachmentsEditor } from '@/components/post-attachments-editor';
 import { PostSourcesEditor } from '@/components/post-sources-editor';
 import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 import {
@@ -16,6 +17,10 @@ import {
   validatePostSources,
   type PostSourceInput,
 } from '@/lib/post-source';
+import {
+  uploadPostAttachments,
+  type PendingAttachment,
+} from '@/lib/post-attachment';
 
 type Category = {
   id: number;
@@ -41,6 +46,7 @@ export default function CreatePostPage() {
   const [title, setTitle] = useState('日本のエネルギー政策について');
   const [body, setBody] = useState('ここに本文を書きます。');
   const [sources, setSources] = useState<PostSourceInput[]>([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -116,6 +122,25 @@ export default function CreatePostPage() {
       return;
     }
 
+    const postId = data.post?.id;
+
+    if (postId && attachments.length > 0) {
+      try {
+        await uploadPostAttachments(
+          postId,
+          attachments.map((item) => item.file),
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? `投稿は保存しましたが、${error.message}`
+            : '投稿は保存しましたが、添付ファイルのアップロードに失敗しました。',
+        );
+        setIsError(true);
+        return;
+      }
+    }
+
     router.push(status === 'draft' ? '/posts/drafts' : '/posts');
   };
 
@@ -165,6 +190,11 @@ export default function CreatePostPage() {
           </Label>
 
           <PostSourcesEditor sources={sources} onChange={setSources} />
+
+          <PostAttachmentsEditor
+            attachments={attachments}
+            onChange={setAttachments}
+          />
 
           <div className="flex flex-wrap gap-3">
             <Button onClick={() => createPost('published')}>公開する</Button>

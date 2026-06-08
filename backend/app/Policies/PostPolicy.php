@@ -22,6 +22,11 @@ class PostPolicy
         return $this->owns($user, $post);
     }
 
+    public function attach(User $user, Post $post): bool
+    {
+        return $this->owns($user, $post) && $post->status !== 'deleted';
+    }
+
     private function owns(User $user, Post $post): bool
     {
         return (int) $user->id === (int) $post->user_id;
