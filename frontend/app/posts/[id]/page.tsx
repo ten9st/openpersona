@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Bookmark } from 'lucide-react';
-import { NavLink } from '@/components/nav-links';
 import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
@@ -299,13 +298,16 @@ export default function PostDetailPage() {
 
   return (
     <PageShell maxWidth="xl">
-      <PageHeader
-        title={post?.title ?? '投稿詳細'}
-        description="投稿の詳細を表示しています"
-      />
+      <PageHeader title={post?.title ?? '投稿詳細'} />
 
       <div className="mb-6">
-        <NavLink href="/posts">← 投稿一覧に戻る</NavLink>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-sm text-primary hover:underline"
+        >
+          ← 戻る
+        </button>
       </div>
 
       {message && (
