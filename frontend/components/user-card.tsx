@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AuthorLink } from '@/components/author-link';
 import { Card } from '@/components/ui/card';
-import { formatTrustScore, type PostAuthor } from '@/lib/post-author';
+import { formatTrustScoreRatio, type PostAuthor } from '@/lib/post-author';
 
 type UserCardProps = {
   user: PostAuthor;
@@ -15,7 +15,7 @@ export function UserCard({ user }: UserCardProps) {
           <AuthorLink user={user} className="font-medium text-foreground" />
           {user.trust_score && (
             <span className="text-xs text-muted">
-              透明性スコア {formatTrustScore(user.trust_score)}
+              透明性スコア {formatTrustScoreRatio(user.trust_score)}
             </span>
           )}
         </div>
