@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
 import { formatAuthorSummary, type PostAuthor } from '@/lib/post-author';
+import { useCurrentUserId } from '@/lib/use-current-user-id';
 
 type AuthorLinkProps = {
   user: PostAuthor;
@@ -8,6 +11,8 @@ type AuthorLinkProps = {
 };
 
 export function AuthorLink({ user, className = '' }: AuthorLinkProps) {
+  const currentUserId = useCurrentUserId();
+
   return (
     <span className={`inline-flex flex-wrap items-center gap-2 ${className}`}>
       <Link
@@ -15,7 +20,7 @@ export function AuthorLink({ user, className = '' }: AuthorLinkProps) {
         className="text-muted transition-colors hover:text-primary hover:underline"
         onClick={(event) => event.stopPropagation()}
       >
-        {formatAuthorSummary(user)}
+        {formatAuthorSummary(user, currentUserId)}
       </Link>
       <IdentityVerifiedBadge verified={user.identity_verified} />
     </span>

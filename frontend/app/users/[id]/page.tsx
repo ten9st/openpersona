@@ -10,7 +10,7 @@ import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
 import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 import { followUser, unfollowUser } from '@/lib/follow';
 import {
-  formatAuthorSummary,
+  formatPersonName,
   formatTrustScoreRatio,
   type TrustScoreSummary,
 } from '@/lib/post-author';
@@ -182,7 +182,9 @@ export default function PublicProfilePage() {
   };
 
   const displayName = profile
-    ? `${profile.user.last_name}${profile.user.first_name ?? ''}`
+    ? formatPersonName(profile.user.last_name, profile.user.first_name, {
+        isSelf: isOwnProfile,
+      })
     : '';
 
   return (
@@ -271,7 +273,11 @@ export default function PublicProfilePage() {
               <div className="flex flex-wrap gap-x-2">
                 <dt className="font-medium text-muted">氏名</dt>
                 <dd className="text-foreground">
-                  {formatAuthorSummary(profile.user).split(' · ')[0]}
+                  {formatPersonName(
+                    profile.user.last_name,
+                    profile.user.first_name,
+                    { isSelf: isOwnProfile },
+                  )}
                 </dd>
               </div>
               {profile.user.region && (
