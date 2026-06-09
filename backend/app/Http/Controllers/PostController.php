@@ -85,6 +85,7 @@ class PostController extends Controller
     {
         $validated = $request->validate([
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'tag' => ['nullable', 'string', 'exists:tags,slug'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
@@ -101,6 +102,10 @@ class PostController extends Controller
 
         if (! empty($validated['category_id'])) {
             $query->where('category_id', $validated['category_id']);
+        }
+
+        if (! empty($validated['tag'])) {
+            $query->whereHas('tags', fn ($tagQuery) => $tagQuery->where('slug', $validated['tag']));
         }
 
         $posts = $query->paginate($perPage);
@@ -169,6 +174,7 @@ class PostController extends Controller
                 ->select(['id', 'user_id', 'field_name', 'is_public'])
                 ->where('field_name', 'first_name'),
             'category:id,name,slug',
+            'tags:id,name,slug',
             'sources',
             'attachments',
             'comments' => fn ($query) => $query
@@ -188,6 +194,7 @@ class PostController extends Controller
         $postArray = $post->toArray();
         $postArray['user'] = $this->formatAuthorForList($post->user);
         $postArray['sources'] = $this->formatSources($post->sources);
+        $postArray['tags'] = $this->formatTags($post->tags);
         $postArray['attachments'] = $post->attachments
             ->map(fn ($attachment) => PostAttachmentPresenter::format($attachment))
             ->values()
@@ -231,7 +238,11 @@ class PostController extends Controller
             $this->syncSources($post, $validated['sources']);
         }
 
-        $post->load('sources');
+        if (array_key_exists('tag_ids', $validated)) {
+            $post->tags()->sync($validated['tag_ids']);
+        }
+
+        $post->load(['sources', 'tags:id,name,slug']);
 
         return response()->json([
             'message' => $status === 'published'
@@ -240,6 +251,7 @@ class PostController extends Controller
             'post' => [
                 ...$post->toArray(),
                 'sources' => $this->formatSources($post->sources),
+                'tags' => $this->formatTags($post->tags),
             ],
         ], 201);
     }
@@ -369,6 +381,19 @@ class PostController extends Controller
             'title' => $source->title,
             'url' => $source->url,
             'note' => $source->note,
+        ])->values()->all();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Tag>  $tags
+     * @return list<array<string, mixed>>
+     */
+    private function formatTags($tags): array
+    {
+        return $tags->map(fn ($tag) => [
+            'id' => $tag->id,
+            'name' => $tag->name,
+            'slug' => $tag->slug,
         ])->values()->all();
     }
 

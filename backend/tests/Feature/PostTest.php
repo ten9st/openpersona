@@ -7,6 +7,7 @@ use App\Models\Comment;
 use App\Models\IdentityVerification;
 use App\Models\Post;
 use App\Models\Profile;
+use App\Models\Tag;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -282,6 +283,83 @@ class PostTest extends TestCase
             'title' => '参考記事',
             'url' => 'https://example.com/reference',
         ]);
+    }
+
+    public function test_authenticated_user_can_create_post_with_tags(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $tagA = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $tagB = Tag::create(['name' => '政策', 'slug' => 'policy']);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => 'タグ付き投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'tag_ids' => [$tagA->id, $tagB->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonCount(2, 'post.tags')
+            ->assertJsonPath('post.tags.0.name', 'エネルギー');
+
+        $postId = $response->json('post.id');
+
+        $this->assertDatabaseHas('post_tags', [
+            'post_id' => $postId,
+            'tag_id' => $tagA->id,
+        ]);
+    }
+
+    public function test_post_list_includes_tags_and_can_filter_by_tag_slug(): void
+    {
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+        $category = $this->createCategory();
+
+        $tagA = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $tagB = Tag::create(['name' => '科学', 'slug' => 'science']);
+
+        $matchedPost = $this->createPublishedPost($user, $category);
+        $matchedPost->update(['title' => '一致する投稿']);
+        $matchedPost->tags()->attach($tagA->id);
+
+        $otherPost = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '別タグの投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+        $otherPost->tags()->attach($tagB->id);
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonCount(2, 'posts')
+            ->assertJsonPath('posts.0.tags.0.slug', 'energy');
+
+        $this->getJson('/api/posts?tag=energy')
+            ->assertOk()
+            ->assertJsonCount(1, 'posts')
+            ->assertJsonPath('posts.0.title', '一致する投稿');
+    }
+
+    public function test_show_includes_post_tags(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $tag = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $post->tags()->attach($tag->id);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'post.tags')
+            ->assertJsonPath('post.tags.0.name', 'エネルギー');
     }
 
     public function test_show_includes_post_sources(): void

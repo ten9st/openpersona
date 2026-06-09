@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { PostAttachmentsEditor } from '@/components/post-attachments-editor';
 import { PostSourcesEditor } from '@/components/post-sources-editor';
+import { PostTagsEditor } from '@/components/post-tags-editor';
 import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 import {
   toApiPostSources,
@@ -21,6 +22,7 @@ import {
   uploadPostAttachments,
   type PendingAttachment,
 } from '@/lib/post-attachment';
+import { type PostTag } from '@/lib/post-tag';
 
 type Category = {
   id: number;
@@ -46,6 +48,7 @@ export default function CreatePostPage() {
   const [title, setTitle] = useState('日本のエネルギー政策について');
   const [body, setBody] = useState('ここに本文を書きます。');
   const [sources, setSources] = useState<PostSourceInput[]>([]);
+  const [tags, setTags] = useState<PostTag[]>([]);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
@@ -110,6 +113,7 @@ export default function CreatePostPage() {
         body,
         status,
         ...(apiSources.length > 0 ? { sources: apiSources } : {}),
+        ...(tags.length > 0 ? { tag_ids: tags.map((tag) => tag.id) } : {}),
       }),
     });
 
@@ -190,6 +194,8 @@ export default function CreatePostPage() {
           </Label>
 
           <PostSourcesEditor sources={sources} onChange={setSources} />
+
+          <PostTagsEditor tags={tags} onChange={setTags} />
 
           <PostAttachmentsEditor
             attachments={attachments}

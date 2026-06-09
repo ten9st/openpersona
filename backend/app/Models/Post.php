@@ -48,4 +48,9 @@ class Post extends Model
     {
         return $this->hasMany(PostAttachment::class);
     }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'post_tags');
+    }
 }

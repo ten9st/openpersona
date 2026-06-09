@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
 import { AuthorLink } from '@/components/author-link';
+import { PostTagBadges } from '@/components/post-tag-badges';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { logout as apiLogout } from '@/lib/api';
+import { API_BASE, logout as apiLogout } from '@/lib/api';
 import { type PostAuthor } from '@/lib/post-author';
+import { type PostTag } from '@/lib/post-tag';
 
 type Post = {
   id: number;
@@ -17,17 +19,18 @@ type Post = {
   view_count: number;
   bookmark_count: number;
   published_at: string | null;
-
   user: PostAuthor;
-
   category: {
     id: number;
     name: string;
   };
+  tags?: PostTag[];
 };
 
-export default function PostsPage() {
+function PostsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tagSlug = searchParams.get('tag');
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState('');
@@ -44,7 +47,13 @@ export default function PostsPage() {
     setMessage('読み込み中...');
     setIsError(false);
 
-    const res = await fetch('http://localhost:8000/api/posts', {
+    const params = new URLSearchParams();
+    if (tagSlug) {
+      params.set('tag', tagSlug);
+    }
+
+    const query = params.toString();
+    const res = await fetch(`${API_BASE}/api/posts${query ? `?${query}` : ''}`, {
       headers: {
         Accept: 'application/json',
       },
@@ -64,8 +73,17 @@ export default function PostsPage() {
 
   useEffect(() => {
     setIsLoggedIn(Boolean(localStorage.getItem('openpersona_token')));
-    fetchPosts();
   }, []);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [tagSlug]);
+
+  const activeTagName =
+    tagSlug != null
+      ? posts.flatMap((post) => post.tags ?? []).find((tag) => tag.slug === tagSlug)
+          ?.name ?? tagSlug
+      : null;
 
   return (
     <PageShell maxWidth="xl">
@@ -95,6 +113,22 @@ export default function PostsPage() {
         )}
       </ActionBar>
 
+      {tagSlug && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted">
+            タグ{' '}
+            <span className="font-medium text-foreground">#{activeTagName}</span>{' '}
+            で絞り込み中
+          </span>
+          <Link
+            href="/posts"
+            className="font-medium text-primary hover:underline"
+          >
+            絞り込みを解除
+          </Link>
+        </div>
+      )}
+
       {message && (
         <div className="mb-6">
           <Alert message={message} variant={isError ? 'error' : 'info'} />
@@ -104,7 +138,11 @@ export default function PostsPage() {
       <div className="grid gap-4">
         {posts.length === 0 && !message && (
           <Card>
-            <p className="text-center text-muted">まだ投稿がありません。</p>
+            <p className="text-center text-muted">
+              {tagSlug
+                ? 'このタグの投稿はまだありません。'
+                : 'まだ投稿がありません。'}
+            </p>
           </Card>
         )}
 
@@ -124,15 +162,31 @@ export default function PostsPage() {
               <h2 className="text-lg font-semibold text-foreground">
                 {post.title}
               </h2>
-
-              <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
-                <span>閲覧 {post.view_count}</span>
-                <span>付箋 {post.bookmark_count}</span>
-              </div>
             </Link>
+
+            <PostTagBadges tags={post.tags ?? []} className="mt-3" />
+
+            <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
+              <span>閲覧 {post.view_count}</span>
+              <span>付箋 {post.bookmark_count}</span>
+            </div>
           </Card>
         ))}
       </div>
     </PageShell>
+  );
+}
+
+export default function PostsPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell maxWidth="xl">
+          <PageHeader title="投稿一覧" description="読み込み中..." />
+        </PageShell>
+      }
+    >
+      <PostsPageContent />
+    </Suspense>
   );
 }
