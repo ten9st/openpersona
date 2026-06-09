@@ -116,7 +116,7 @@ export function PostSourcesEditor({ sources, onChange }: PostSourcesEditorProps)
         </ul>
       )}
 
-      <Button type="button" variant="secondary" onClick={addSource}>
+      <Button type="button" variant="secondary" size="sm" className="w-auto" onClick={addSource}>
         ソースを追加
       </Button>
     </div>
