@@ -11,7 +11,7 @@ import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 import { followUser, unfollowUser } from '@/lib/follow';
 import {
   formatAuthorSummary,
-  formatTrustScore,
+  formatTrustScoreRatio,
   type TrustScoreSummary,
 } from '@/lib/post-author';
 
@@ -187,15 +187,16 @@ export default function PublicProfilePage() {
 
   return (
     <PageShell maxWidth="lg">
-      <PageHeader
-        title={profile ? displayName : 'プロフィール'}
-        description="公開されているプロフィール情報を表示しています"
-      />
+      <PageHeader title={profile ? displayName : 'プロフィール'} />
 
       <div className="mb-6">
-        <Link href="/posts" className="text-sm text-primary hover:underline">
-          ← 投稿一覧に戻る
-        </Link>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-sm text-primary hover:underline"
+        >
+          ← 戻る
+        </button>
       </div>
 
       {message && (
@@ -207,29 +208,12 @@ export default function PublicProfilePage() {
       {profile && (
         <div className="grid gap-6">
           <Card>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
-                <IdentityVerifiedBadge verified={profile.identity_verified} />
-              </div>
-
-              {isLoggedIn && !isOwnProfile && (
-                <Button
-                  type="button"
-                  variant={isFollowing ? 'primary' : 'secondary'}
-                  onClick={toggleFollow}
-                  disabled={isTogglingFollow}
-                >
-                  {isTogglingFollow
-                    ? '処理中...'
-                    : isFollowing
-                      ? 'フォロー中'
-                      : 'フォローする'}
-                </Button>
-              )}
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
+              <IdentityVerifiedBadge verified={profile.identity_verified} />
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-4 text-sm">
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
               {isLoggedIn ? (
                 <>
                   <Link
@@ -251,6 +235,21 @@ export default function PublicProfilePage() {
                   <span className="text-muted">フォロイング {followingCount}</span>
                 </>
               )}
+
+              {isLoggedIn && !isOwnProfile && (
+                <Button
+                  type="button"
+                  variant={isFollowing ? 'primary' : 'secondary'}
+                  onClick={toggleFollow}
+                  disabled={isTogglingFollow}
+                >
+                  {isTogglingFollow
+                    ? '処理中...'
+                    : isFollowing
+                      ? 'フォロー中'
+                      : 'フォローする'}
+                </Button>
+              )}
             </div>
 
             {followMessage && (
@@ -266,7 +265,7 @@ export default function PublicProfilePage() {
               <div className="flex flex-wrap gap-x-2">
                 <dt className="font-medium text-muted">透明性スコア</dt>
                 <dd className="text-foreground">
-                  {formatTrustScore(profile.trust_score)}
+                  {formatTrustScoreRatio(profile.trust_score)}
                 </dd>
               </div>
               <div className="flex flex-wrap gap-x-2">

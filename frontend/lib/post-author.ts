@@ -16,6 +16,9 @@ export type PostAuthor = {
 export const formatTrustScore = (trustScore: TrustScoreSummary) =>
   `透明性 ${trustScore.total_score}/${trustScore.max_score}`;
 
+export const formatTrustScoreRatio = (trustScore: TrustScoreSummary) =>
+  `${trustScore.total_score}/${trustScore.max_score}`;
+
 export const formatAuthorSummary = (user: PostAuthor) => {
   const parts = [`${user.last_name}${user.first_name ?? ''}`];
 
