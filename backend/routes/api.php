@@ -9,6 +9,7 @@ use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\FollowController;
+use App\Http\Controllers\PostAttachmentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicProfileController;
@@ -108,6 +109,8 @@ Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store
 Route::middleware('auth:sanctum')->post('/posts/{post}/copy', [PostController::class, 'copy']);
 Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
 Route::middleware('auth:sanctum')->delete('/posts/{post}', [PostController::class, 'destroy']);
+Route::middleware('auth:sanctum')->post('/posts/{post}/attachments', [PostAttachmentController::class, 'store']);
+Route::middleware('auth:sanctum')->delete('/posts/{post}/attachments/{attachment}', [PostAttachmentController::class, 'destroy']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/bookmark', [BookmarkController::class, 'store']);
 Route::middleware('auth:sanctum')->delete('/posts/{post}/bookmark', [BookmarkController::class, 'destroy']);
 Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
