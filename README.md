@@ -128,15 +128,17 @@ openpersona/
 | コメント投稿・表示 | ✅ | ✅ |
 | 閲覧数カウント（重複排除） | ✅ | ✅ |
 | 本人確認済みバッジ表示 | ✅ | ✅ |
+| 付箋（ブックマーク）一覧・追加・解除 | ✅ | ✅ |
+| フォロー・フォロー解除 | ✅ | ✅ |
+| フォロワー・フォロイング一覧 | ✅ | ✅ |
+| タイムライン（フォロー中ユーザーの投稿） | ✅ | ✅ |
+| 投稿添付ファイル（画像・PDF） | ✅ | ✅ |
+| タグの登録・表示・絞り込み | ✅ | ✅ |
 
 ### DB スキーマのみ（API・UI 未実装）
 
 | 機能 | テーブル |
 |------|----------|
-| 付箋（ブックマーク） | `bookmarks` |
-| フォロー | `follows` |
-| 投稿添付ファイル | `post_attachments` |
-| タグ | `tags`, `post_tags` |
 | 本人確認（申請・審査フロー） | `identity_verifications`（`verified` バッジ表示のみ実装） |
 | カテゴリ CRUD（管理画面） | `categories`（一覧 API・Seeder 投入は実装済み） |
 
@@ -436,6 +438,72 @@ openpersona/
 
 ---
 
+### 付箋
+
+```
+POST   /api/posts/{post}/bookmark   付箋追加
+DELETE /api/posts/{post}/bookmark   付箋解除
+GET    /api/bookmarks               付箋一覧（認証必須）
+```
+
+| メソッド | パス | 認証 | 説明 |
+|----------|------|:----:|------|
+| `POST` | `/api/posts/{post}/bookmark` | 必須 | 付箋追加 |
+| `DELETE` | `/api/posts/{post}/bookmark` | 必須 | 付箋解除 |
+| `GET` | `/api/bookmarks` | 必須 | 付箋した公開投稿一覧 |
+
+---
+
+### フォロー
+
+```
+POST   /api/users/{user}/follow     フォロー
+DELETE /api/users/{user}/follow     フォロー解除
+GET    /api/users/{user}/followers  フォロワー一覧
+GET    /api/users/{user}/following  フォロイング一覧
+GET    /api/timeline                タイムライン（認証必須）
+```
+
+| メソッド | パス | 認証 | 説明 |
+|----------|------|:----:|------|
+| `POST` | `/api/users/{user}/follow` | 必須 | フォロー |
+| `DELETE` | `/api/users/{user}/follow` | 必須 | フォロー解除 |
+| `GET` | `/api/users/{user}/followers` | 必須 | フォロワー一覧 |
+| `GET` | `/api/users/{user}/following` | 必須 | フォロイング一覧 |
+| `GET` | `/api/timeline` | 必須 | フォロー中ユーザーの公開投稿一覧 |
+
+---
+
+### タグ
+
+```
+GET    /api/tags?search={keyword}   タグ一覧・検索
+POST   /api/tags                    タグ作成
+```
+
+| メソッド | パス | 認証 | 説明 |
+|----------|------|:----:|------|
+| `GET` | `/api/tags` | 不要 | タグ一覧（`search` で部分一致） |
+| `POST` | `/api/tags` | 必須 | タグ作成（同名があれば既存を返却） |
+
+投稿作成時に `tag_ids` 配列で紐付け。一覧・詳細のレスポンスに `tags` を含む。`GET /api/posts?tag={slug}` で絞り込み可能。
+
+---
+
+### 添付ファイル
+
+```
+POST   /api/posts/{post}/attachments          添付ファイル追加
+DELETE /api/posts/{post}/attachments/{attachment}  添付ファイル削除
+```
+
+| メソッド | パス | 認証 | 説明 |
+|----------|------|:----:|------|
+| `POST` | `/api/posts/{post}/attachments` | 必須 | 画像・PDF の添付（投稿者のみ） |
+| `DELETE` | `/api/posts/{post}/attachments/{attachment}` | 必須 | 添付削除（投稿者のみ） |
+
+---
+
 ### プロフィール
 
 | メソッド | パス | 認証 | 説明 |
@@ -523,6 +591,10 @@ openpersona/
 | `/posts/drafts` | 必須 | 下書き一覧 |
 | `/posts/[id]/edit` | 必須 | 下書き編集（公開済みはコピー導線のみ） |
 | `/users/[id]` | 不要 | 公開プロフィール閲覧 |
+| `/users/[id]/followers` | 不要 | フォロワー一覧 |
+| `/users/[id]/following` | 不要 | フォロイング一覧 |
+| `/bookmarks` | 必須 | 付箋した投稿一覧 |
+| `/timeline` | 必須 | フォロー中ユーザーの投稿一覧 |
 | `/profile` | 必須 | プロフィール編集 |
 
 ### ゲスト / ログイン済みの挙動
@@ -561,9 +633,11 @@ users 1──1 profiles
 users 1──1 trust_scores
 users 1──n posts, comments, user_educations, user_careers
 users 1──n profile_visibilities, identity_verifications
+users 1──n bookmarks, follows (follower / followed)
 
 posts n──1 categories
-posts 1──n comments, post_sources, post_view_records
+posts 1──n comments, post_sources, post_view_records, post_attachments
+posts n──n tags (post_tags)
 ```
 
 | モデル | テーブル | 主要リレーション |
@@ -575,8 +649,12 @@ posts 1──n comments, post_sources, post_view_records
 | `UserCareer` | `user_careers` | `belongsTo(User)` |
 | `TrustScore` | `trust_scores` | `belongsTo(User)` |
 | `IdentityVerification` | `identity_verifications` | `belongsTo(User)` |
-| `Post` | `posts` | `belongsTo(User)`, `belongsTo(Category)`, `hasMany(Comment)`, `hasMany(PostSource)` |
+| `Post` | `posts` | `belongsTo(User)`, `belongsTo(Category)`, `hasMany(Comment)`, `hasMany(PostSource)`, `hasMany(PostAttachment)`, `belongsToMany(Tag)` |
 | `PostSource` | `post_sources` | `belongsTo(Post)` |
+| `PostAttachment` | `post_attachments` | `belongsTo(Post)` |
+| `Bookmark` | `bookmarks` | `belongsTo(User)`, `belongsTo(Post)` |
+| `Follow` | `follows` | `belongsTo(User)` |
+| `Tag` | `tags` | `belongsToMany(Post)` |
 | `Comment` | `comments` | `belongsTo(Post)`, `belongsTo(User)` |
 | `Category` | `categories` | — |
 | `PostViewRecord` | `post_view_records` | — |
@@ -598,15 +676,6 @@ posts 1──n comments, post_sources, post_view_records
 `profile_score` + `posting_score` + `source_score` + `history_score` の合計を `total_score` として保持。上限は本人確認前 50・後 100。算出ロジックは `config/trust_score.php` を参照。
 
 `source_score` は公開投稿のうち `post_sources` を 1 件以上持つ割合（25% / 50% / 75% 閾値）で加点。
-
-### 将来テーブル（ER 概要）
-
-```
-users 1──n bookmarks, follows (follower / followed)
-
-posts 1──n post_attachments
-posts n──n tags (post_tags)
-```
 
 詳細は [`docs/db_design.md`](docs/db_design.md) を参照。
 
@@ -707,5 +776,5 @@ Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `Public
 1. **ログアウト UI** — 投稿一覧ページのみ。プロフィール等の全画面共通ナビは未整備
 2. **本人確認** — `identity_verifications` の `verified` バッジ表示のみ。申請・審査フローは未実装
 3. **カテゴリ管理** — 一覧 API・Seeder 投入はあるが、管理画面による CRUD は未実装
-4. コメント削除、付箋・フォロー、投稿添付・タグは未実装
+4. 付箋・フォロー・投稿添付・タグは実装済み。コメント削除は未実装
 5. 訂正投稿と元投稿の紐付け（`copied_from_post_id` は API レスポンスのみ。DB カラムは未保持）
