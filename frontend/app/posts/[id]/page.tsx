@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PostAttachmentsList } from '@/components/post-attachments-list';
 import { PostSourcesList } from '@/components/post-sources-list';
 import { PostTagBadges } from '@/components/post-tag-badges';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, getAuthToken } from '@/lib/api';
 import { addBookmark, removeBookmark } from '@/lib/bookmark';
 import { copyPostAsCorrection } from '@/lib/post-copy';
 import { type PostAuthor } from '@/lib/post-author';
@@ -63,7 +63,7 @@ export default function PostDetailPage() {
   const [commentMessage, setCommentMessage] = useState('');
   const [commentIsError, setCommentIsError] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getAuthToken()));
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -87,7 +87,7 @@ export default function PostDetailPage() {
     setMessage('読み込み中...');
     setIsError(false);
 
-    const token = localStorage.getItem('openpersona_token');
+    const token = getAuthToken();
 
     const res = await fetch(`${API_BASE}/api/posts/${postId}`, {
       credentials: 'include',
@@ -118,8 +118,8 @@ export default function PostDetailPage() {
   }, [postId]);
 
   useEffect(() => {
-    const token = localStorage.getItem('openpersona_token');
-    setIsLoggedIn(!!token);
+    const token = getAuthToken();
+    setIsLoggedIn(Boolean(token));
 
     if (!token) {
       setCurrentUserId(null);
@@ -155,7 +155,7 @@ export default function PostDetailPage() {
       return;
     }
 
-    const token = localStorage.getItem('openpersona_token');
+    const token = getAuthToken();
 
     if (!token) {
       router.push('/login');
@@ -337,32 +337,30 @@ export default function PostDetailPage() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-              <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted">
                 <span>閲覧 {post.view_count}</span>
-                <div className="flex items-center gap-2">
-                  {isLoggedIn ? (
-                    <button
-                      type="button"
-                      onClick={toggleBookmark}
-                      disabled={isTogglingBookmark}
-                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ${
-                        isBookmarked
-                          ? 'text-primary'
-                          : 'text-muted hover:text-foreground'
-                      }`}
-                      aria-pressed={isBookmarked}
-                      aria-label={isBookmarked ? '付箋を解除' : '付箋を追加'}
-                    >
-                      <span aria-hidden>🔖</span>
-                      <span>{bookmarkCount}</span>
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-sm">
-                      <span aria-hidden>🔖</span>
-                      <span>{bookmarkCount}</span>
-                    </span>
-                  )}
-                </div>
+                {isLoggedIn ? (
+                  <button
+                    type="button"
+                    onClick={toggleBookmark}
+                    disabled={isTogglingBookmark}
+                    className={`inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isBookmarked
+                        ? 'font-medium text-primary'
+                        : 'text-muted hover:text-foreground'
+                    }`}
+                    aria-pressed={isBookmarked}
+                    aria-label={isBookmarked ? '付箋を解除' : '付箋を追加'}
+                  >
+                    <span aria-hidden>🔖</span>
+                    <span>{bookmarkCount}</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <span aria-hidden>🔖</span>
+                    <span>{bookmarkCount}</span>
+                  </span>
+                )}
               </div>
               {isAuthor && (
                 <div className="flex flex-wrap gap-2">
