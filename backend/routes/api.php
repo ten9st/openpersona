@@ -13,6 +13,7 @@ use App\Http\Controllers\PostAttachmentController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicProfileController;
+use App\Http\Controllers\TagController;
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
 use App\Support\UserBasicInfoRules;
@@ -95,6 +96,8 @@ Route::middleware('auth:sanctum')->post('/logout', function (Request $request) {
 });
 
 Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/tags', [TagController::class, 'index']);
+Route::middleware('auth:sanctum')->post('/tags', [TagController::class, 'store']);
 Route::get('/posts', [PostController::class, 'index']);
 Route::get('/users/{user}', [PublicProfileController::class, 'show']);
 Route::middleware('auth:sanctum')->get('/timeline', [FollowController::class, 'timeline']);

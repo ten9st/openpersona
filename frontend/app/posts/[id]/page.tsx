@@ -12,12 +12,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PostAttachmentsList } from '@/components/post-attachments-list';
 import { PostSourcesList } from '@/components/post-sources-list';
+import { PostTagBadges } from '@/components/post-tag-badges';
 import { API_BASE } from '@/lib/api';
 import { addBookmark, removeBookmark } from '@/lib/bookmark';
 import { copyPostAsCorrection } from '@/lib/post-copy';
 import { type PostAuthor } from '@/lib/post-author';
 import { type PostAttachment } from '@/lib/post-attachment';
 import { type PostSource } from '@/lib/post-source';
+import { type PostTag } from '@/lib/post-tag';
 
 type Comment = {
   id: number;
@@ -46,6 +48,7 @@ type Post = {
 
   sources?: PostSource[];
   attachments?: PostAttachment[];
+  tags?: PostTag[];
 };
 
 export default function PostDetailPage() {
@@ -107,6 +110,7 @@ export default function PostDetailPage() {
       comments: data.post.comments ?? [],
       sources: data.post.sources ?? [],
       attachments: data.post.attachments ?? [],
+      tags: data.post.tags ?? [],
     });
     setBookmarkCount(data.post.bookmark_count ?? 0);
     setIsBookmarked(Boolean(data.post.is_bookmarked));
@@ -325,6 +329,8 @@ export default function PostDetailPage() {
             </div>
 
             <h1 className="text-2xl font-semibold text-foreground">{post.title}</h1>
+
+            <PostTagBadges tags={post.tags ?? []} className="mt-4" />
 
             <p className="mt-6 whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
               {post.body}

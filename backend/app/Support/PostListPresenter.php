@@ -18,6 +18,7 @@ class PostListPresenter
                 ->select(['id', 'user_id', 'field_name', 'is_public'])
                 ->where('field_name', 'first_name'),
             'category:id,name,slug',
+            'tags:id,name,slug',
         ];
     }
 

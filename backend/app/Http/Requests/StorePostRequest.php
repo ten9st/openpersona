@@ -22,6 +22,8 @@ class StorePostRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'status' => ['nullable', 'in:draft,published'],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer', 'exists:tags,id'],
             ...PostSourceRules::rules(),
         ];
     }
