@@ -14,10 +14,33 @@ export type PostAuthor = {
 };
 
 export const formatTrustScore = (trustScore: TrustScoreSummary) =>
-  `信頼 ${trustScore.total_score}/${trustScore.max_score}`;
+  `透明性 ${trustScore.total_score}/${trustScore.max_score}`;
 
-export const formatAuthorSummary = (user: PostAuthor) => {
-  const parts = [`${user.last_name}${user.first_name ?? ''}`];
+/** 「透明性スコア」ラベルと併用する数値表示（例: 40/50） */
+export const formatTrustScoreRatio = (trustScore: TrustScoreSummary) =>
+  `${trustScore.total_score}/${trustScore.max_score}`;
+
+/** 姓のみ、または公開されている姓名を表示する。本人以外には「さん」を付ける */
+export const formatPersonName = (
+  lastName: string,
+  firstName?: string | null,
+  options?: { isSelf?: boolean },
+) => {
+  const name = firstName ? `${lastName}${firstName}` : lastName;
+
+  return options?.isSelf ? name : `${name}さん`;
+};
+
+export const formatAuthorSummary = (
+  user: PostAuthor,
+  currentUserId?: number | null,
+) => {
+  const isSelf =
+    currentUserId != null && user.id === currentUserId;
+
+  const parts = [
+    formatPersonName(user.last_name, user.first_name, { isSelf }),
+  ];
 
   if (user.region) {
     parts.push(user.region);

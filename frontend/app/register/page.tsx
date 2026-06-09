@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { PasswordInput } from '@/components/ui/password-input';
+import { API_BASE } from '@/lib/api';
 
 type RegisterResponse = {
   message: string;
@@ -20,11 +22,18 @@ type RegisterResponse = {
   };
 };
 
+const FieldError = ({ message }: { message?: string }) =>
+  message ? (
+    <span className="text-xs font-normal text-destructive">{message}</span>
+  ) : null;
+
 export default function RegisterPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('password123');
+  const [passwordConfirm, setPasswordConfirm] = useState('password123');
+  const [passwordConfirmError, setPasswordConfirmError] = useState('');
   const [lastName, setLastName] = useState('山田');
   const [firstName, setFirstName] = useState('太郎');
   const [birthdate, setBirthdate] = useState('1990-01-01');
@@ -32,10 +41,18 @@ export default function RegisterPage() {
   const [isError, setIsError] = useState(false);
 
   const register = async () => {
+    if (password !== passwordConfirm) {
+      setPasswordConfirmError('パスワードが一致しません。');
+      setMessage('');
+      setIsError(true);
+      return;
+    }
+
+    setPasswordConfirmError('');
     setMessage('登録中...');
     setIsError(false);
 
-    const res = await fetch('http://localhost:8000/api/register', {
+    const res = await fetch(`${API_BASE}/api/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -83,12 +100,31 @@ export default function RegisterPage() {
 
           <Label>
             パスワード
-            <Input
+            <PasswordInput
               placeholder="パスワード"
-              type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordConfirmError) {
+                  setPasswordConfirmError('');
+                }
+              }}
             />
+          </Label>
+
+          <Label>
+            パスワード（確認）
+            <PasswordInput
+              placeholder="パスワード（確認）"
+              value={passwordConfirm}
+              onChange={(e) => {
+                setPasswordConfirm(e.target.value);
+                if (passwordConfirmError) {
+                  setPasswordConfirmError('');
+                }
+              }}
+            />
+            <FieldError message={passwordConfirmError} />
           </Label>
 
           <div className="grid gap-5 sm:grid-cols-2">

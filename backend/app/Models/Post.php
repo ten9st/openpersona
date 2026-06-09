@@ -33,4 +33,24 @@ class Post extends Model
     {
         return $this->hasMany(Comment::class);
     }
+
+    public function sources()
+    {
+        return $this->hasMany(PostSource::class);
+    }
+
+    public function bookmarks()
+    {
+        return $this->hasMany(Bookmark::class);
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(PostAttachment::class);
+    }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'post_tags');
+    }
 }

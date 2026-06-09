@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\Comment;
 use App\Models\IdentityVerification;
 use App\Models\Post;
 use App\Models\Profile;
+use App\Models\Tag;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -243,6 +245,223 @@ class PostTest extends TestCase
         ]);
     }
 
+    public function test_authenticated_user_can_create_post_with_sources(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '参考文献付き投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'sources' => [
+                [
+                    'source_type' => 'url',
+                    'title' => '参考記事',
+                    'url' => 'https://example.com/reference',
+                    'note' => '一次情報',
+                ],
+            ],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('post.title', '参考文献付き投稿')
+            ->assertJsonCount(1, 'post.sources')
+            ->assertJsonPath('post.sources.0.source_type', 'url')
+            ->assertJsonPath('post.sources.0.title', '参考記事')
+            ->assertJsonPath('post.sources.0.url', 'https://example.com/reference')
+            ->assertJsonPath('post.sources.0.note', '一次情報');
+
+        $postId = $response->json('post.id');
+
+        $this->assertDatabaseHas('post_sources', [
+            'post_id' => $postId,
+            'source_type' => 'url',
+            'title' => '参考記事',
+            'url' => 'https://example.com/reference',
+        ]);
+    }
+
+    public function test_authenticated_user_can_create_post_with_tags(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $tagA = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $tagB = Tag::create(['name' => '政策', 'slug' => 'policy']);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => 'タグ付き投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'tag_ids' => [$tagA->id, $tagB->id],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonCount(2, 'post.tags')
+            ->assertJsonPath('post.tags.0.name', 'エネルギー');
+
+        $postId = $response->json('post.id');
+
+        $this->assertDatabaseHas('post_tags', [
+            'post_id' => $postId,
+            'tag_id' => $tagA->id,
+        ]);
+    }
+
+    public function test_post_list_includes_tags_and_can_filter_by_tag_slug(): void
+    {
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+        $category = $this->createCategory();
+
+        $tagA = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $tagB = Tag::create(['name' => '科学', 'slug' => 'science']);
+
+        $matchedPost = $this->createPublishedPost($user, $category);
+        $matchedPost->update(['title' => '一致する投稿']);
+        $matchedPost->tags()->attach($tagA->id);
+
+        $otherPost = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '別タグの投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+        $otherPost->tags()->attach($tagB->id);
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonCount(2, 'posts')
+            ->assertJsonPath('posts.0.tags.0.slug', 'energy');
+
+        $this->getJson('/api/posts?tag=energy')
+            ->assertOk()
+            ->assertJsonCount(1, 'posts')
+            ->assertJsonPath('posts.0.title', '一致する投稿');
+    }
+
+    public function test_show_includes_post_tags(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $tag = Tag::create(['name' => 'エネルギー', 'slug' => 'energy']);
+        $post->tags()->attach($tag->id);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'post.tags')
+            ->assertJsonPath('post.tags.0.name', 'エネルギー');
+    }
+
+    public function test_show_includes_post_sources(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $post->sources()->create([
+            'source_type' => 'book',
+            'title' => '参考書籍',
+            'note' => '第3章',
+        ]);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'post.sources')
+            ->assertJsonPath('post.sources.0.source_type', 'book')
+            ->assertJsonPath('post.sources.0.title', '参考書籍')
+            ->assertJsonPath('post.sources.0.note', '第3章');
+    }
+
+    public function test_post_source_url_must_use_http_or_https(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '危険なURL',
+            'body' => '本文',
+            'status' => 'draft',
+            'sources' => [
+                [
+                    'source_type' => 'url',
+                    'url' => 'javascript:alert(1)',
+                ],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['sources.0.url']);
+
+        $this->postJson('/api/posts', [
+            'category_id' => $category->id,
+            'title' => '有効なURL',
+            'body' => '本文',
+            'status' => 'draft',
+            'sources' => [
+                [
+                    'source_type' => 'url',
+                    'url' => 'https://example.com/safe',
+                ],
+            ],
+        ])->assertCreated();
+    }
+
+    public function test_author_can_replace_sources_on_update(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '本文',
+            'status' => 'draft',
+        ]);
+
+        $post->sources()->create([
+            'source_type' => 'url',
+            'url' => 'https://example.com/old',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/posts/{$post->id}", [
+            'sources' => [
+                [
+                    'source_type' => 'paper',
+                    'title' => '論文タイトル',
+                ],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonCount(1, 'post.sources')
+            ->assertJsonPath('post.sources.0.source_type', 'paper')
+            ->assertJsonPath('post.sources.0.title', '論文タイトル');
+
+        $this->assertDatabaseMissing('post_sources', [
+            'post_id' => $post->id,
+            'url' => 'https://example.com/old',
+        ]);
+
+        $this->assertDatabaseHas('post_sources', [
+            'post_id' => $post->id,
+            'source_type' => 'paper',
+            'title' => '論文タイトル',
+        ]);
+    }
+
     public function test_authenticated_user_can_create_draft(): void
     {
         $user = User::factory()->create();
@@ -331,6 +550,66 @@ class PostTest extends TestCase
         $this->assertSame(0, $post->fresh()->view_count);
     }
 
+    public function test_author_cannot_update_published_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/posts/{$post->id}", [
+            'title' => '改ざんタイトル',
+        ])->assertForbidden();
+    }
+
+    public function test_author_can_copy_published_post_as_correction_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $post->sources()->create([
+            'source_type' => 'url',
+            'url' => 'https://example.com/source',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson("/api/posts/{$post->id}/copy")
+            ->assertCreated()
+            ->assertJsonPath('copied_from_post_id', $post->id)
+            ->assertJsonPath('post.status', 'draft')
+            ->assertJsonPath('post.title', '【訂正】公開投稿')
+            ->assertJsonPath('post.body', '本文です。')
+            ->assertJsonCount(1, 'post.sources');
+
+        $copyId = $response->json('post.id');
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $copyId,
+            'user_id' => $user->id,
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+
+        $this->assertDatabaseHas('post_sources', [
+            'post_id' => $copyId,
+            'url' => 'https://example.com/source',
+        ]);
+    }
+
+    public function test_user_cannot_copy_other_users_post(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        Sanctum::actingAs($other);
+
+        $this->postJson("/api/posts/{$post->id}/copy")->assertForbidden();
+    }
+
     public function test_author_can_update_draft_and_publish(): void
     {
         $user = User::factory()->create();
@@ -381,5 +660,93 @@ class PostTest extends TestCase
         $this->putJson("/api/posts/{$post->id}", [
             'title' => '改ざん',
         ])->assertForbidden();
+    }
+
+    public function test_author_can_delete_own_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('message', '投稿を削除しました。');
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'deleted',
+        ]);
+    }
+
+    public function test_user_cannot_delete_other_users_post(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        Sanctum::actingAs($other);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'published',
+        ]);
+    }
+
+    public function test_guest_cannot_delete_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertUnauthorized();
+    }
+
+    public function test_deleted_post_is_not_listed(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $post->update(['status' => 'deleted']);
+
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonCount(0, 'posts');
+    }
+
+    public function test_deleted_post_cannot_be_viewed_even_by_author(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $post->update(['status' => 'deleted']);
+
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertNotFound();
+    }
+
+    public function test_deleted_post_comments_are_not_visible(): void
+    {
+        $author = User::factory()->create();
+        $commenter = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        Comment::create([
+            'post_id' => $post->id,
+            'user_id' => $commenter->id,
+            'body' => 'コメント',
+        ]);
+
+        $post->update(['status' => 'deleted']);
+
+        $this->getJson("/api/posts/{$post->id}")->assertNotFound();
     }
 }

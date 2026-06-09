@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
+import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
+import { followUser, unfollowUser } from '@/lib/follow';
 import {
-  formatAuthorSummary,
-  formatTrustScore,
+  formatPersonName,
+  formatTrustScoreRatio,
   type TrustScoreSummary,
 } from '@/lib/post-author';
 
@@ -42,11 +45,12 @@ type PublicProfile = {
   };
   trust_score: TrustScoreSummary;
   identity_verified: boolean;
+  followers_count: number;
+  following_count: number;
+  is_following?: boolean;
   educations: PublicEducation[];
   careers: PublicCareer[];
 };
-
-const API_BASE = 'http://localhost:8000/api';
 
 const formatYearRange = (start: number | null, end: number | null) => {
   if (start == null && end == null) {
@@ -65,13 +69,22 @@ const formatYearRange = (start: number | null, end: number | null) => {
 };
 
 export default function PublicProfilePage() {
+  const router = useRouter();
   const params = useParams();
-  const userId = params.id;
+  const userId = params.id as string;
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [followMessage, setFollowMessage] = useState('');
+  const [followIsError, setFollowIsError] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
-  const loadedUserId = useRef<string | string[] | undefined>(undefined);
+  const loadedUserId = useRef<string | undefined>(undefined);
 
   const fetchProfile = useCallback(async () => {
     if (!userId) {
@@ -81,8 +94,13 @@ export default function PublicProfilePage() {
     setMessage('読み込み中...');
     setIsError(false);
 
-    const res = await fetch(`${API_BASE}/users/${userId}`, {
-      headers: { Accept: 'application/json' },
+    const token = getAuthToken();
+
+    const res = await fetch(`${API_BASE}/api/users/${userId}`, {
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
 
     const data = await res.json();
@@ -95,10 +113,31 @@ export default function PublicProfilePage() {
     }
 
     setProfile(data);
+    setFollowersCount(data.followers_count ?? 0);
+    setFollowingCount(data.following_count ?? 0);
+    setIsFollowing(Boolean(data.is_following));
     setMessage('');
   }, [userId]);
 
   useEffect(() => {
+    const token = getAuthToken();
+    setIsLoggedIn(!!token);
+
+    if (!token) {
+      setCurrentUserId(null);
+    } else {
+      fetch(`${API_BASE}/api/me`, {
+        headers: authHeaders(token),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.user?.id != null) {
+            setCurrentUserId(data.user.id);
+          }
+        })
+        .catch(() => setCurrentUserId(null));
+    }
+
     if (loadedUserId.current === userId) {
       return;
     }
@@ -107,21 +146,59 @@ export default function PublicProfilePage() {
     fetchProfile();
   }, [fetchProfile, userId]);
 
+  const isOwnProfile =
+    profile != null &&
+    currentUserId != null &&
+    profile.user.id === currentUserId;
+
+  const toggleFollow = async () => {
+    const token = getAuthToken();
+
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    setIsTogglingFollow(true);
+    setFollowMessage('');
+    setFollowIsError(false);
+
+    try {
+      const data = isFollowing
+        ? await unfollowUser(userId)
+        : await followUser(userId);
+
+      setIsFollowing(data.is_following);
+      setFollowersCount(data.followers_count);
+      setFollowingCount(data.following_count);
+    } catch (error) {
+      setFollowMessage(
+        error instanceof Error ? error.message : 'フォロー操作に失敗しました。',
+      );
+      setFollowIsError(true);
+    } finally {
+      setIsTogglingFollow(false);
+    }
+  };
+
   const displayName = profile
-    ? `${profile.user.last_name}${profile.user.first_name ?? ''}`
+    ? formatPersonName(profile.user.last_name, profile.user.first_name, {
+        isSelf: isOwnProfile,
+      })
     : '';
 
   return (
     <PageShell maxWidth="lg">
-      <PageHeader
-        title={profile ? displayName : 'プロフィール'}
-        description="公開されているプロフィール情報を表示しています"
-      />
+      <PageHeader title={profile ? displayName : 'プロフィール'} />
 
       <div className="mb-6">
-        <Link href="/posts" className="text-sm text-primary hover:underline">
-          ← 投稿一覧に戻る
-        </Link>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-sm text-primary hover:underline"
+        >
+          ← 戻る
+        </button>
       </div>
 
       {message && (
@@ -137,17 +214,70 @@ export default function PublicProfilePage() {
               <h2 className="text-lg font-semibold text-foreground">基本情報</h2>
               <IdentityVerifiedBadge verified={profile.identity_verified} />
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href={`/users/${userId}/followers`}
+                    className="text-primary hover:underline"
+                  >
+                    フォロワー {followersCount}
+                  </Link>
+                  <Link
+                    href={`/users/${userId}/following`}
+                    className="text-primary hover:underline"
+                  >
+                    フォロイング {followingCount}
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <span className="text-muted">フォロワー {followersCount}</span>
+                  <span className="text-muted">フォロイング {followingCount}</span>
+                </>
+              )}
+
+              {isLoggedIn && !isOwnProfile && (
+                <Button
+                  type="button"
+                  variant={isFollowing ? 'primary' : 'secondary'}
+                  onClick={toggleFollow}
+                  disabled={isTogglingFollow}
+                >
+                  {isTogglingFollow
+                    ? '処理中...'
+                    : isFollowing
+                      ? 'フォロー中'
+                      : 'フォローする'}
+                </Button>
+              )}
+            </div>
+
+            {followMessage && (
+              <div className="mt-4">
+                <Alert
+                  message={followMessage}
+                  variant={followIsError ? 'error' : 'info'}
+                />
+              </div>
+            )}
+
             <dl className="mt-4 grid gap-3 text-sm">
               <div className="flex flex-wrap gap-x-2">
-                <dt className="font-medium text-muted">信頼スコア</dt>
+                <dt className="font-medium text-muted">透明性スコア</dt>
                 <dd className="text-foreground">
-                  {formatTrustScore(profile.trust_score)}
+                  {formatTrustScoreRatio(profile.trust_score)}
                 </dd>
               </div>
               <div className="flex flex-wrap gap-x-2">
                 <dt className="font-medium text-muted">氏名</dt>
                 <dd className="text-foreground">
-                  {formatAuthorSummary(profile.user).split(' · ')[0]}
+                  {formatPersonName(
+                    profile.user.last_name,
+                    profile.user.first_name,
+                    { isSelf: isOwnProfile },
+                  )}
                 </dd>
               </div>
               {profile.user.region && (
@@ -187,7 +317,7 @@ export default function PublicProfilePage() {
                 {profile.educations.map((education) => {
                   const yearRange = formatYearRange(
                     education.start_year,
-                    education.end_year
+                    education.end_year,
                   );
 
                   return (

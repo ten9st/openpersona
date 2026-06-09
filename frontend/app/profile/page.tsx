@@ -10,7 +10,7 @@ import { CheckboxLabel, Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { IdentityVerifiedBadge } from '@/components/identity-verified-badge';
 import { Select } from '@/components/ui/select';
-import { formatTrustScore } from '@/lib/post-author';
+import { formatTrustScoreRatio } from '@/lib/post-author';
 import { isPrefecture, PREFECTURES } from '@/lib/prefectures';
 import {
   birthdateInputBounds,
@@ -374,7 +374,7 @@ export default function ProfilePage() {
             )}
             {trustScore && (
               <p className="text-sm text-muted">
-                信頼スコア: {formatTrustScore(trustScore)}
+                透明性スコア: {formatTrustScoreRatio(trustScore)}
               </p>
             )}
 
@@ -661,6 +661,8 @@ export default function ProfilePage() {
             <Button
               type="button"
               variant="secondary"
+              size="sm"
+              className="w-auto"
               onClick={() =>
                 setForm((prev) => ({
                   ...prev,
@@ -798,6 +800,8 @@ export default function ProfilePage() {
             <Button
               type="button"
               variant="secondary"
+              size="sm"
+              className="w-auto"
               onClick={() =>
                 setForm((prev) => ({
                   ...prev,
