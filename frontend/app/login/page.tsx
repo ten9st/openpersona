@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { PasswordInput } from '@/components/ui/password-input';
 import { API_BASE, ensureCsrfCookie, getCsrfToken } from '@/lib/api';
 
 type LoginResponse = {
@@ -84,9 +85,8 @@ export default function LoginPage() {
 
           <Label>
             パスワード
-            <Input
+            <PasswordInput
               placeholder="パスワード"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
