@@ -74,6 +74,8 @@ export function PostAttachmentsEditor({
       <Button
         type="button"
         variant="secondary"
+        size="sm"
+        className="w-auto"
         onClick={() => inputRef.current?.click()}
       >
         ファイルを選択

@@ -661,6 +661,8 @@ export default function ProfilePage() {
             <Button
               type="button"
               variant="secondary"
+              size="sm"
+              className="w-auto"
               onClick={() =>
                 setForm((prev) => ({
                   ...prev,
@@ -798,6 +800,8 @@ export default function ProfilePage() {
             <Button
               type="button"
               variant="secondary"
+              size="sm"
+              className="w-auto"
               onClick={() =>
                 setForm((prev) => ({
                   ...prev,

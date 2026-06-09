@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { Bookmark } from 'lucide-react';
 import { NavLink } from '@/components/nav-links';
 import { AuthorLink } from '@/components/author-link';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
@@ -344,20 +345,29 @@ export default function PostDetailPage() {
                     type="button"
                     onClick={toggleBookmark}
                     disabled={isTogglingBookmark}
-                    className={`inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isBookmarked
-                        ? 'font-medium text-primary'
-                        : 'text-muted hover:text-foreground'
-                    }`}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     aria-pressed={isBookmarked}
                     aria-label={isBookmarked ? '付箋を解除' : '付箋を追加'}
                   >
-                    <span aria-hidden>🔖</span>
-                    <span>{bookmarkCount}</span>
+                    <Bookmark
+                      className={`size-4 ${
+                        isBookmarked
+                          ? 'fill-green-600 text-green-600'
+                          : 'text-gray-400'
+                      }`}
+                      aria-hidden
+                    />
+                    <span
+                      className={
+                        isBookmarked ? 'font-medium text-green-600' : 'text-muted'
+                      }
+                    >
+                      {bookmarkCount}
+                    </span>
                   </button>
                 ) : (
                   <span className="inline-flex items-center gap-1">
-                    <span aria-hidden>🔖</span>
+                    <Bookmark className="size-4 text-gray-400" aria-hidden />
                     <span>{bookmarkCount}</span>
                   </span>
                 )}
