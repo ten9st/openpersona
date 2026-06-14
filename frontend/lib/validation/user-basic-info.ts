@@ -11,7 +11,7 @@ export const NAME_PATTERN =
 export type BasicInfoFields = {
   last_name: string;
   first_name: string;
-  birthdate: string;
+  birthdate?: string;
   region?: string;
 };
 
@@ -95,7 +95,7 @@ const validateRegion = (value: string | undefined): string | undefined => {
 
 export const validateUserBasicInfo = (
   fields: BasicInfoFields,
-  options: { requireRegion?: boolean } = {}
+  options: { requireRegion?: boolean; skipBirthdate?: boolean } = {}
 ): BasicInfoErrors => {
   const errors: BasicInfoErrors = {};
 
@@ -105,8 +105,10 @@ export const validateUserBasicInfo = (
   const firstNameError = validateName(fields.first_name, '名');
   if (firstNameError) errors.first_name = firstNameError;
 
-  const birthdateError = validateBirthdate(fields.birthdate);
-  if (birthdateError) errors.birthdate = birthdateError;
+  if (!options.skipBirthdate) {
+    const birthdateError = validateBirthdate(fields.birthdate ?? '');
+    if (birthdateError) errors.birthdate = birthdateError;
+  }
 
   if (options.requireRegion) {
     const regionError = validateRegion(fields.region);
@@ -121,7 +123,9 @@ export const trimBasicInfo = (
 ): BasicInfoFields => ({
   last_name: fields.last_name.trim(),
   first_name: fields.first_name.trim(),
-  birthdate: fields.birthdate.trim(),
+  ...(fields.birthdate !== undefined
+    ? { birthdate: fields.birthdate.trim() }
+    : {}),
   region: fields.region?.trim(),
 });
 

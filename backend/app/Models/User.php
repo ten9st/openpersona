@@ -104,4 +104,19 @@ class User extends Authenticatable
     {
         return $this->isIdentityVerified();
     }
+
+    /**
+     * @return array{email: bool, birthdate: bool, last_name: bool, first_name: bool}
+     */
+    public function basicInfoLockedFields(): array
+    {
+        $nameLocked = $this->hasLockedBasicInfo();
+
+        return [
+            'email' => true,
+            'birthdate' => true,
+            'last_name' => $nameLocked,
+            'first_name' => $nameLocked,
+        ];
+    }
 }
