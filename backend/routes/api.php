@@ -64,38 +64,41 @@ Route::post('/register', function (Request $request) {
 // webミドルウェアを使用するAPI
 // セッションCookieが必要な処理
 // ============================================================
-Route::middleware('web')->post('/login', function (Request $request) {
-    $credentials = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required'],
-    ]);
-
-    if (!Auth::attempt($credentials)) {
+Route::middleware('web')->group(function () {
+    Route::post('/login', function (Request $request) {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+        ]);
+    
+        if (!Auth::attempt($credentials)) {
+            return response()->json([
+                'message' => 'メールアドレスまたはパスワードが違います。',
+            ], 401);
+        }
+    
+        PostController::clearViewedPostsFromSession($request);
+    
+        $user = User::where('email', $credentials['email'])->firstOrFail();
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+    
         return response()->json([
-            'message' => 'メールアドレスまたはパスワードが違います。',
-        ], 401);
-    }
+            'message' => 'ログインが成功しました。',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'last_name' => $user->last_name,
+                'first_name' => $user->first_name,
+                'birthdate' => $user->birthdate,
+            ],
+        ]);
+    });
 
-    PostController::clearViewedPostsFromSession($request);
 
-    $user = User::where('email', $credentials['email'])->firstOrFail();
-    $token = $user->createToken('openpersona_token')->plainTextToken;
-
-    return response()->json([
-        'message' => 'ログインが成功しました。',
-        'token' => $token,
-        'user' => [
-            'id' => $user->id,
-            'email' => $user->email,
-            'last_name' => $user->last_name,
-            'first_name' => $user->first_name,
-            'birthdate' => $user->birthdate,
-        ],
-    ]);
+    // 閲覧数カウントのセッション管理のためwebミドルウェアを使用
+    Route::get('/posts/{post}', [PostController::class, 'show']);
 });
-
-// 閲覧数カウントのセッション管理のためwebミドルウェアを使用
-Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
 
 // ============================================================
 // 認証必須なAPI (Sanctumトークンを使用)
