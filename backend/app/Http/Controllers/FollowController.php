@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Presenters\PostPresenter;
+use App\Domain\Post\QueryServices\PostQueryService;
 use App\Models\Follow;
 use App\Models\User;
 use App\Support\PublicProfilePresenter;
@@ -11,6 +12,10 @@ use Illuminate\Http\Request;
 
 class FollowController extends Controller
 {
+    public function __construct(
+        private PostQueryService $postQueryService,
+    ) {}
+
     public function timeline(Request $request)
     {
         $followedUserIds = Follow::query()
@@ -23,14 +28,7 @@ class FollowController extends Controller
             ]);
         }
 
-        $posts = Post::query()
-            ->select(PostPresenter::selectColumns())
-            ->withCount(['bookmarks as bookmark_count'])
-            ->with(PostPresenter::eagerLoads())
-            ->whereIn('user_id', $followedUserIds)
-            ->where('status', 'published')
-            ->latest('published_at')
-            ->get()
+        $posts = $this->postQueryService->publishedByUserIds($followedUserIds)
             ->map(fn (Post $post) => PostPresenter::format($post))
             ->values()
             ->all();
