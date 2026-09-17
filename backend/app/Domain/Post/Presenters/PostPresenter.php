@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Support;
+namespace App\Domain\Post\Presenters;
 
 use App\Domain\Post\Models\Post;
+use App\Support\PublicProfilePresenter;
 
-class PostListPresenter
+class PostPresenter
 {
     /**
      * @return array<int, string>

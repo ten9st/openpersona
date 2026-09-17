@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostAttachment;
-use App\Rules\PostAttachmentFile;
-use App\Support\PostAttachmentPresenter;
+use App\Domain\Post\Presenters\PostAttachmentPresenter;
+use App\Domain\Post\Rules\PostAttachmentFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;

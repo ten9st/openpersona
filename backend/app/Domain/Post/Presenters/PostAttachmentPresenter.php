@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support;
+namespace App\Domain\Post\Presenters;
 
 use App\Domain\Post\Models\PostAttachment;
 use Illuminate\Support\Facades\Storage;

@@ -6,11 +6,11 @@ use App\Domain\Post\Models\Bookmark;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostSource;
 use App\Domain\Post\Models\PostViewRecord;
+use App\Domain\Post\Presenters\PostAttachmentPresenter;
+use App\Domain\Post\Presenters\PostPresenter;
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
 use App\Models\User;
-use App\Support\PostAttachmentPresenter;
-use App\Support\PostListPresenter;
 use App\Support\PublicProfilePresenter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -93,9 +93,9 @@ class PostController extends Controller
         $perPage = $validated['per_page'] ?? 20;
 
         $query = Post::query()
-            ->select(PostListPresenter::selectColumns())
+            ->select(PostPresenter::selectColumns())
             ->withCount(['bookmarks as bookmark_count'])
-            ->with(PostListPresenter::eagerLoads())
+            ->with(PostPresenter::eagerLoads())
             ->where('status', '!=', 'deleted')
             ->where('status', 'published')
             ->latest('published_at');
@@ -111,7 +111,7 @@ class PostController extends Controller
         $posts = $query->paginate($perPage);
 
         $items = collect($posts->items())
-            ->map(fn (Post $post) => PostListPresenter::format($post))
+            ->map(fn (Post $post) => PostPresenter::format($post))
             ->all();
 
         return response()->json([

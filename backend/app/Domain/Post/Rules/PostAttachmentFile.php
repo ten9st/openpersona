@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Rules;
+namespace App\Domain\Post\Rules;
 
 use App\Domain\Post\Models\PostAttachment;
 use Closure;

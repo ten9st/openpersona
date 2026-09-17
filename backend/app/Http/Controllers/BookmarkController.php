@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Post\Models\Bookmark;
 use App\Domain\Post\Models\Post;
-use App\Support\PostListPresenter;
+use App\Domain\Post\Presenters\PostPresenter;
 use Illuminate\Http\Request;
 
 class BookmarkController extends Controller
@@ -19,15 +19,15 @@ class BookmarkController extends Controller
                 ->where('status', 'published'))
             ->with([
                 'post' => fn ($query) => $query
-                    ->select(PostListPresenter::selectColumns())
+                    ->select(PostPresenter::selectColumns())
                     ->withCount(['bookmarks as bookmark_count'])
-                    ->with(PostListPresenter::eagerLoads()),
+                    ->with(PostPresenter::eagerLoads()),
             ])
             ->latest()
             ->get();
 
         $posts = $bookmarks
-            ->map(fn (Bookmark $bookmark) => PostListPresenter::format($bookmark->post, true))
+            ->map(fn (Bookmark $bookmark) => PostPresenter::format($bookmark->post, true))
             ->values()
             ->all();
 
