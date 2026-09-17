@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Bookmark;
-use App\Models\Category;
-use App\Models\Post;
+use App\Domain\Post\Models\Bookmark;
+use App\Domain\Post\Models\Category;
+use App\Domain\Post\Models\Post;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;

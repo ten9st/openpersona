@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Post;
+use App\Domain\Post\Models\Post;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;

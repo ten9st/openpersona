@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Support;
+namespace App\Domain\Post\Presenters;
 
-use App\Models\PostAttachment;
+use App\Domain\Post\Models\PostAttachment;
 use Illuminate\Support\Facades\Storage;
 
 class PostAttachmentPresenter

@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Category;
-use App\Models\Comment;
+use App\Domain\Post\Models\Category;
+use App\Domain\Post\Models\Comment;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\Tag;
 use App\Models\IdentityVerification;
-use App\Models\Post;
 use App\Models\Profile;
-use App\Models\Tag;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
