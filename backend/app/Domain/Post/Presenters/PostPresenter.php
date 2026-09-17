@@ -3,6 +3,8 @@
 namespace App\Domain\Post\Presenters;
 
 use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostSource;
+use App\Domain\Post\Models\Tag;
 use App\Support\PublicProfilePresenter;
 
 class PostPresenter
@@ -53,5 +55,33 @@ class PostPresenter
         }
 
         return $postArray;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, PostSource>  $sources
+     * @return list<array<string, mixed>>
+     */
+    public static function sources($sources): array
+    {
+        return $sources->map(fn (PostSource $source) => [
+            'id' => $source->id,
+            'source_type' => $source->source_type,
+            'title' => $source->title,
+            'url' => $source->url,
+            'note' => $source->note,
+        ])->values()->all();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Tag>  $tags
+     * @return list<array<string, mixed>>
+     */
+    public static function tags($tags): array
+    {
+        return $tags->map(fn (Tag $tag) => [
+            'id' => $tag->id,
+            'name' => $tag->name,
+            'slug' => $tag->slug,
+        ])->values()->all();
     }
 }
