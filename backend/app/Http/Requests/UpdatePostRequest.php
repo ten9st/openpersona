@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Post;
+use App\Domain\Post\Models\Post;
 use App\Support\PostSourceRules;
 use Illuminate\Foundation\Http\FormRequest;
 

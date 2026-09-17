@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Models\PostSource;
+use App\Domain\Post\Models\PostSource;
 use App\Rules\HttpOnlyUrl;
 use Illuminate\Validation\Rule;
 

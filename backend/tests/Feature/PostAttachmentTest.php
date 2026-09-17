@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Category;
-use App\Models\Post;
-use App\Models\PostAttachment;
+use App\Domain\Post\Models\Category;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostAttachment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Category;
+use App\Domain\Post\Models\Category;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;

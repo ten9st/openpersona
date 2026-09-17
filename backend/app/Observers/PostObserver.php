@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Post;
+use App\Domain\Post\Models\Post;
 use App\Services\TrustScoreService;
 
 class PostObserver

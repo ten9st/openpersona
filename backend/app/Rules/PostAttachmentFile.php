@@ -2,7 +2,7 @@
 
 namespace App\Rules;
 
-use App\Models\PostAttachment;
+use App\Domain\Post\Models\PostAttachment;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Http\UploadedFile;

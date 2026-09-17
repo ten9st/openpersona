@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Models\Post;
+use App\Domain\Post\Models\Post;
 
 class PostListPresenter
 {

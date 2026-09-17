@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Bookmark;
-use App\Models\Post;
+use App\Domain\Post\Models\Bookmark;
+use App\Domain\Post\Models\Post;
 use App\Support\PostListPresenter;
 use Illuminate\Http\Request;
 

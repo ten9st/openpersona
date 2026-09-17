@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Models\PostAttachment;
+use App\Domain\Post\Models\PostAttachment;
 use Illuminate\Support\Facades\Storage;
 
 class PostAttachmentPresenter

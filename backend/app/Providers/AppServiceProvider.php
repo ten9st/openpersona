@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use App\Models\Post;
-use App\Models\PostSource;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostSource;
 use App\Models\Profile;
 use App\Models\User;
 use App\Observers\PostObserver;

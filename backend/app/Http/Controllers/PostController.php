@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Post\Models\Bookmark;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostSource;
+use App\Domain\Post\Models\PostViewRecord;
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
-use App\Models\Bookmark;
-use App\Models\Post;
-use App\Models\PostSource;
-use App\Models\PostViewRecord;
 use App\Models\User;
 use App\Support\PostAttachmentPresenter;
 use App\Support\PostListPresenter;
@@ -385,7 +385,7 @@ class PostController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, \App\Models\Tag>  $tags
+     * @param  \Illuminate\Support\Collection<int, \App\Domain\Post\Models\Tag>  $tags
      * @return list<array<string, mixed>>
      */
     private function formatTags($tags): array

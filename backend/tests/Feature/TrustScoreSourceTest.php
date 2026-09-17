@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Category;
-use App\Models\Post;
-use App\Models\PostSource;
+use App\Domain\Post\Models\Category;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostSource;
 use App\Models\TrustScore;
 use App\Models\User;
 use App\Services\TrustScoreService;

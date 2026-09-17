@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Post;
-use App\Models\PostAttachment;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\PostAttachment;
 use App\Rules\PostAttachmentFile;
 use App\Support\PostAttachmentPresenter;
 use Illuminate\Http\Request;

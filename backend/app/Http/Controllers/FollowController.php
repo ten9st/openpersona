@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Post\Models\Post;
 use App\Models\Follow;
-use App\Models\Post;
 use App\Models\User;
 use App\Support\PostListPresenter;
 use App\Support\PublicProfilePresenter;

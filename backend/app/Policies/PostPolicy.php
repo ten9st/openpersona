@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Models\Post;
+use App\Domain\Post\Models\Post;
 use App\Models\User;
 
 class PostPolicy
