@@ -6,6 +6,7 @@ use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostSource;
 use App\Domain\Post\Models\Tag;
 use App\Support\PublicProfilePresenter;
+use Illuminate\Support\Collection;
 
 class PostPresenter
 {
@@ -58,7 +59,7 @@ class PostPresenter
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, PostSource>  $sources
+     * @param  Collection<int, PostSource>  $sources
      * @return list<array<string, mixed>>
      */
     public static function sources($sources): array
@@ -73,7 +74,7 @@ class PostPresenter
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Tag>  $tags
+     * @param  Collection<int, Tag>  $tags
      * @return list<array<string, mixed>>
      */
     public static function tags($tags): array
