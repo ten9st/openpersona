@@ -31,7 +31,27 @@ class PostViewTrackingService
 
         $accessToken = PersonalAccessToken::findToken($token);
 
-        return $accessToken instanceof PersonalAccessToken ? $accessToken : null;
+        if (! $accessToken instanceof PersonalAccessToken || ! $this->isAccessTokenValid($accessToken)) {
+            return null;
+        }
+
+        return $accessToken;
+    }
+
+    /**
+     * Sanctumの認証ガード(Laravel\Sanctum\Guard::isValidAccessToken)と同じ基準で
+     * トークンの有効期限を判定する。sanctum.expirationによる一律の失効と、
+     * トークン単体のexpires_atによる失効の両方を考慮する。
+     */
+    private function isAccessTokenValid(PersonalAccessToken $accessToken): bool
+    {
+        $expirationMinutes = config('sanctum.expiration');
+
+        if ($expirationMinutes && $accessToken->created_at->lte(now()->subMinutes($expirationMinutes))) {
+            return false;
+        }
+
+        return ! $accessToken->expires_at || ! $accessToken->expires_at->isPast();
     }
 
     public function isPostAuthor(Post $post, ?PersonalAccessToken $accessToken): bool

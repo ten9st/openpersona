@@ -191,4 +191,21 @@ class BookmarkTest extends TestCase
             ->assertJsonPath('post.is_bookmarked', true)
             ->assertJsonPath('post.bookmark_count', 1);
     }
+
+    public function test_user_bookmarks_relation_returns_only_own_bookmarks(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+        $ownPost = $this->createPublishedPost($user, $category, '自分がブックマークした投稿');
+        $otherPost = $this->createPublishedPost($other, $category, '他人がブックマークした投稿');
+
+        Bookmark::create(['user_id' => $user->id, 'post_id' => $ownPost->id]);
+        Bookmark::create(['user_id' => $other->id, 'post_id' => $otherPost->id]);
+
+        $bookmarks = $user->bookmarks;
+
+        $this->assertCount(1, $bookmarks);
+        $this->assertSame($ownPost->id, $bookmarks->first()->post_id);
+    }
 }
