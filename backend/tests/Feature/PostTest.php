@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Category;
-use App\Models\Comment;
+use App\Domain\Post\Models\Category;
+use App\Domain\Post\Models\Comment;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Models\Tag;
 use App\Models\IdentityVerification;
-use App\Models\Post;
 use App\Models\Profile;
-use App\Models\Tag;
 use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -548,6 +548,145 @@ class PostTest extends TestCase
             ->assertJsonPath('post.body', '非公開です。');
 
         $this->assertSame(0, $post->fresh()->view_count);
+    }
+
+    public function test_author_with_token_expired_via_expires_at_cannot_view_own_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $newToken = $user->createToken('openpersona_token', ['*'], now()->subMinute());
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$newToken->plainTextToken}",
+        ])->assertNotFound();
+    }
+
+    public function test_author_with_token_expired_via_sanctum_expiration_config_cannot_view_own_draft(): void
+    {
+        config(['sanctum.expiration' => 60]);
+
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $newToken = $user->createToken('openpersona_token');
+        $newToken->accessToken->forceFill(['created_at' => now()->subMinutes(61)])->save();
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$newToken->plainTextToken}",
+        ])->assertNotFound();
+    }
+
+    public function test_author_with_token_still_within_sanctum_expiration_window_can_view_own_draft(): void
+    {
+        config(['sanctum.expiration' => 60]);
+
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $newToken = $user->createToken('openpersona_token');
+        $newToken->accessToken->forceFill(['created_at' => now()->subMinutes(59)])->save();
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$newToken->plainTextToken}",
+        ])
+            ->assertOk()
+            ->assertJsonPath('post.title', '下書き');
+    }
+
+    public function test_other_users_valid_token_cannot_view_draft(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $token = $other->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertNotFound();
+    }
+
+    public function test_invalid_token_cannot_view_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => 'Bearer 999999|invalid-token-value',
+        ])->assertNotFound();
+    }
+
+    public function test_revoked_token_cannot_view_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+
+        $post = Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '非公開です。',
+            'status' => 'draft',
+        ]);
+
+        $newToken = $user->createToken('openpersona_token');
+        $newToken->accessToken->delete();
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$newToken->plainTextToken}",
+        ])->assertNotFound();
+    }
+
+    public function test_expired_token_cannot_list_drafts(): void
+    {
+        $user = User::factory()->create();
+
+        $newToken = $user->createToken('openpersona_token', ['*'], now()->subMinute());
+
+        $this->getJson('/api/posts/drafts', [
+            'Authorization' => "Bearer {$newToken->plainTextToken}",
+        ])->assertUnauthorized();
     }
 
     public function test_author_cannot_update_published_post(): void

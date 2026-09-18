@@ -31,7 +31,10 @@ class ProfileTest extends TestCase
         $response = $this->getJson('/api/profile');
 
         $response->assertOk()
-            ->assertJsonPath('meta.basic_info_locked', false)
+            ->assertJsonPath('meta.basic_info_locked.email', true)
+            ->assertJsonPath('meta.basic_info_locked.birthdate', true)
+            ->assertJsonPath('meta.basic_info_locked.last_name', false)
+            ->assertJsonPath('meta.basic_info_locked.first_name', false)
             ->assertJsonPath('meta.identity_verified', false)
             ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_UNVERIFIED)
             ->assertJsonPath('user.last_name', $user->last_name)
@@ -85,7 +88,6 @@ class ProfileTest extends TestCase
         $payload = [
             'last_name' => '公開',
             'first_name' => '太郎',
-            'birthdate' => '1995-06-15',
             'biography' => '自己紹介です。',
             'occupation' => 'エンジニア',
             'region' => '東京都',
@@ -186,7 +188,6 @@ class ProfileTest extends TestCase
         $this->putJson('/api/profile', [
             'last_name' => $user->last_name,
             'first_name' => $user->first_name,
-            'birthdate' => $user->birthdate->format('Y-m-d'),
             'region' => '東京',
             'visibilities' => ProfileVisibility::defaultMap(),
             'educations' => [],
@@ -215,7 +216,6 @@ class ProfileTest extends TestCase
             ...$basePayload,
             'last_name' => '',
             'first_name' => '太郎',
-            'birthdate' => '1995-06-15',
             'region' => '東京都',
         ])
             ->assertUnprocessable()
@@ -225,7 +225,6 @@ class ProfileTest extends TestCase
             ...$basePayload,
             'last_name' => '山田123',
             'first_name' => '太郎',
-            'birthdate' => '1995-06-15',
             'region' => '東京都',
         ])
             ->assertUnprocessable()
@@ -235,31 +234,34 @@ class ProfileTest extends TestCase
             ...$basePayload,
             'last_name' => '山田',
             'first_name' => '太郎',
-            'birthdate' => now()->addDay()->format('Y-m-d'),
-            'region' => '東京都',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['birthdate']);
-
-        $this->putJson('/api/profile', [
-            ...$basePayload,
-            'last_name' => '山田',
-            'first_name' => '太郎',
-            'birthdate' => now()->subYears(10)->format('Y-m-d'),
-            'region' => '東京都',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['birthdate']);
-
-        $this->putJson('/api/profile', [
-            ...$basePayload,
-            'last_name' => '山田',
-            'first_name' => '太郎',
-            'birthdate' => '1995-06-15',
             'region' => '',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['region']);
+    }
+
+    public function test_user_cannot_change_birthdate_via_profile_update(): void
+    {
+        $user = User::factory()->create([
+            'birthdate' => '1990-01-01',
+        ]);
+        Profile::create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/profile', [
+            'last_name' => $user->last_name,
+            'first_name' => $user->first_name,
+            'birthdate' => '1995-06-15',
+            'region' => '東京都',
+            'visibilities' => ProfileVisibility::defaultMap(),
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertOk();
+
+        $user->refresh();
+        $this->assertSame('1990-01-01', $user->birthdate->format('Y-m-d'));
     }
 
     public function test_verified_user_cannot_change_locked_basic_info(): void
@@ -284,14 +286,16 @@ class ProfileTest extends TestCase
 
         $this->getJson('/api/profile')
             ->assertOk()
-            ->assertJsonPath('meta.basic_info_locked', true)
+            ->assertJsonPath('meta.basic_info_locked.email', true)
+            ->assertJsonPath('meta.basic_info_locked.birthdate', true)
+            ->assertJsonPath('meta.basic_info_locked.last_name', true)
+            ->assertJsonPath('meta.basic_info_locked.first_name', true)
             ->assertJsonPath('meta.identity_verified', true)
             ->assertJsonPath('trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
 
         $this->putJson('/api/profile', [
             'last_name' => '変更',
             'first_name' => '太郎',
-            'birthdate' => '1990-01-01',
             'region' => '東京都',
             'visibilities' => ProfileVisibility::defaultMap(),
             'educations' => [],
@@ -327,7 +331,6 @@ class ProfileTest extends TestCase
         $this->putJson('/api/profile', [
             'last_name' => '山田',
             'first_name' => '太郎',
-            'birthdate' => '1990-01-01',
             'region' => '大阪府',
             'biography' => '新しい自己紹介',
             'occupation' => '新職',

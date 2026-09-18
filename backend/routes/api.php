@@ -1,10 +1,9 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
@@ -16,8 +15,18 @@ use App\Http\Controllers\PublicProfileController;
 use App\Http\Controllers\TagController;
 use App\Models\Profile;
 use App\Models\ProfileVisibility;
+use App\Models\User;
 use App\Support\UserBasicInfoRules;
 
+// ============================================================
+// 認証不要のAPI
+// ============================================================
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/posts', [PostController::class, 'index']);
+Route::get('/tags', [TagController::class, 'index']);
+Route::get('/users/{user}', [PublicProfileController::class, 'show']);
+
+// 新規ユーザー登録
 Route::post('/register', function (Request $request) {
     $request->merge(UserBasicInfoRules::trimInput($request->all()));
 
@@ -51,72 +60,98 @@ Route::post('/register', function (Request $request) {
     ], 201);
 });
 
-Route::middleware('web')->post('/login', function (Request $request) {
-    $credentials = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required'],
-    ]);
-
-    if (!Auth::attempt($credentials)) {
-        return response()->json([
-            'message' => 'メールアドレスまたはパスワードが違います。',
-        ], 401);
-    }
-
-    PostController::clearViewedPostsFromSession($request);
-
-    $user = User::where('email', $credentials['email'])->firstOrFail();
-    $token = $user->createToken('openpersona_token')->plainTextToken;
-
-    return response()->json([
-        'message' => 'ログインが成功しました。',
-        'token' => $token,
-        'user' => [
-            'id' => $user->id,
-            'email' => $user->email,
-            'last_name' => $user->last_name,
-            'first_name' => $user->first_name,
-            'birthdate' => $user->birthdate,
-        ],
-    ]);
-});
-
-Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
-    return response()->json([
-        'user' => $request->user(),
-    ]);
-});
-
-Route::middleware('auth:sanctum')->post('/logout', function (Request $request) {
-    $request->user()->currentAccessToken()->delete();
-
-    return response()->json([
-        'message' => 'ログアウトしました。',
-    ]);
-});
-
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::get('/tags', [TagController::class, 'index']);
-Route::middleware('auth:sanctum')->post('/tags', [TagController::class, 'store']);
-Route::get('/posts', [PostController::class, 'index']);
-Route::get('/users/{user}', [PublicProfileController::class, 'show']);
-Route::middleware('auth:sanctum')->get('/timeline', [FollowController::class, 'timeline']);
-Route::middleware('auth:sanctum')->get('/users/{user}/followers', [FollowController::class, 'followers']);
-Route::middleware('auth:sanctum')->get('/users/{user}/following', [FollowController::class, 'following']);
-Route::middleware('auth:sanctum')->post('/users/{user}/follow', [FollowController::class, 'store']);
-Route::middleware('auth:sanctum')->delete('/users/{user}/follow', [FollowController::class, 'destroy']);
-Route::middleware('auth:sanctum')->get('/bookmarks', [BookmarkController::class, 'index']);
+// /posts/{post} (下記webグループ内) より先に登録しないと
+// "drafts" が {post} のワイルドカードに吸収され404になるため、
+// このルートだけ先に登録する。
 Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
-Route::middleware('web')->get('/posts/{post}', [PostController::class, 'show']);
-Route::middleware('auth:sanctum')->post('/posts', [PostController::class, 'store']);
-Route::middleware('auth:sanctum')->post('/posts/{post}/copy', [PostController::class, 'copy']);
-Route::middleware('auth:sanctum')->put('/posts/{post}', [PostController::class, 'update']);
-Route::middleware('auth:sanctum')->delete('/posts/{post}', [PostController::class, 'destroy']);
-Route::middleware('auth:sanctum')->post('/posts/{post}/attachments', [PostAttachmentController::class, 'store']);
-Route::middleware('auth:sanctum')->delete('/posts/{post}/attachments/{attachment}', [PostAttachmentController::class, 'destroy']);
-Route::middleware('auth:sanctum')->post('/posts/{post}/bookmark', [BookmarkController::class, 'store']);
-Route::middleware('auth:sanctum')->delete('/posts/{post}/bookmark', [BookmarkController::class, 'destroy']);
-Route::middleware('auth:sanctum')->post('/posts/{post}/comments', [CommentController::class, 'store']);
 
-Route::middleware('auth:sanctum')->get('/profile', [ProfileController::class, 'show']);
-Route::middleware('auth:sanctum')->put('/profile', [ProfileController::class, 'update']);
+// ============================================================
+// webミドルウェアを使用するAPI
+// セッションCookieが必要な処理
+// ============================================================
+Route::middleware('web')->group(function () {
+    Route::post('/login', function (Request $request) {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+        ]);
+    
+        if (!Auth::attempt($credentials)) {
+            return response()->json([
+                'message' => 'メールアドレスまたはパスワードが違います。',
+            ], 401);
+        }
+    
+        PostController::clearViewedPostsFromSession($request);
+    
+        $user = User::where('email', $credentials['email'])->firstOrFail();
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+    
+        return response()->json([
+            'message' => 'ログインが成功しました。',
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'last_name' => $user->last_name,
+                'first_name' => $user->first_name,
+                'birthdate' => $user->birthdate,
+            ],
+        ]);
+    });
+
+
+    // 閲覧数カウントのセッション管理のためwebミドルウェアを使用
+    Route::get('/posts/{post}', [PostController::class, 'show']);
+});
+
+// ============================================================
+// 認証必須なAPI (Sanctumトークンを使用)
+// ============================================================
+Route::middleware('auth:sanctum')->group(function () {
+    // 認証ユーザー情報
+    Route::get('/me', function (Request $request) {
+        return response()->json([
+            'user' => $request->user(),
+        ]);
+    });
+    Route::post('/logout', function (Request $request) {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json([
+            'message' => 'ログアウトしました。',
+        ]);
+    });
+
+    // プロフィール
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
+
+    // 投稿
+    // (/posts/drafts は /posts/{post} との衝突を避けるため上部で登録済み)
+    Route::post('/posts', [PostController::class, 'store']);
+    Route::post('/posts/{post}/copy', [PostController::class, 'copy']);
+    Route::put('/posts/{post}', [PostController::class, 'update']);
+    Route::delete('/posts/{post}', [PostController::class, 'destroy']);
+
+    // 添付ファイル
+    Route::post('/posts/{post}/attachments', [PostAttachmentController::class, 'store']);
+    Route::delete('/posts/{post}/attachments/{attachment}', [PostAttachmentController::class, 'destroy']);
+
+    // 付箋
+    Route::get('/bookmarks', [BookmarkController::class, 'index']);
+    Route::post('/posts/{post}/bookmark', [BookmarkController::class, 'store']);
+    Route::delete('/posts/{post}/bookmark', [BookmarkController::class, 'destroy']);
+
+    // コメント
+    Route::post('/posts/{post}/comments', [CommentController::class, 'store']);
+
+    // タグ
+    Route::post('/tags', [TagController::class, 'store']);
+
+    // フォロー・タイムライン
+    Route::get('/timeline', [FollowController::class, 'timeline']);
+    Route::get('/users/{user}/followers', [FollowController::class, 'followers']);
+    Route::get('/users/{user}/following', [FollowController::class, 'following']);
+    Route::post('/users/{user}/follow', [FollowController::class, 'store']);
+    Route::delete('/users/{user}/follow', [FollowController::class, 'destroy']);
+});

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Comment;
-use App\Models\Post;
+use App\Domain\Post\Models\Comment;
+use App\Domain\Post\Models\Post;
 use App\Support\PublicProfilePresenter;
 use Illuminate\Http\Request;
 

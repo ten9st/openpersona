@@ -517,7 +517,6 @@ DELETE /api/posts/{post}/attachments/{attachment}  添付ファイル削除
 {
   "last_name": "山田",
   "first_name": "太郎",
-  "birthdate": "1990-01-01",
   "biography": "自己紹介文",
   "occupation": "エンジニア",
   "region": "東京都",
@@ -549,7 +548,14 @@ DELETE /api/posts/{post}/attachments/{attachment}  添付ファイル削除
 }
 ```
 
-本人確認済みユーザーは姓・名・生年月日・メールアドレスの変更不可（`meta.basic_info_locked: true`）。
+| フィールド | 変更可否 |
+|------------|----------|
+| `email` | 常に変更不可（GET レスポンスで参照用に返却） |
+| `birthdate` | 常に変更不可（GET レスポンスで参照用に返却） |
+| `last_name` / `first_name` | 本人確認前のみ変更可 |
+| その他（`region`, `biography` 等） | 常に変更可 |
+
+`meta.basic_info_locked` はフィールド単位のロック状態を返します（`email` / `birthdate` は常に `true`、`last_name` / `first_name` は本人確認済みの場合 `true`）。
 
 ---
 

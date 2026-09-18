@@ -62,7 +62,6 @@ class ProfileController extends Controller
             $user->update([
                 'last_name' => $validated['last_name'],
                 'first_name' => $validated['first_name'],
-                'birthdate' => $validated['birthdate'],
             ]);
         }
 
@@ -110,7 +109,7 @@ class ProfileController extends Controller
 
         return [
             'meta' => [
-                'basic_info_locked' => $user->hasLockedBasicInfo(),
+                'basic_info_locked' => $user->basicInfoLockedFields(),
                 'identity_verified' => $user->isIdentityVerified(),
             ],
             'user' => [

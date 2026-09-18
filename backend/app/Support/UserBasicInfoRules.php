@@ -40,19 +40,21 @@ class UserBasicInfoRules
     }
 
     /**
-     * プロフィール編集の基本情報（都道府県を含む）
+     * プロフィール編集の基本情報（都道府県を含む。email・birthdate は更新対象外）
      *
      * @return array<string, list<string|\Illuminate\Validation\Rules\In>>
      */
     public static function profileRules(): array
     {
-        return array_merge(self::userRules(), [
+        return [
+            'last_name' => ['required', 'string', 'max:'.self::NAME_MAX, 'regex:'.self::NAME_PATTERN],
+            'first_name' => ['required', 'string', 'max:'.self::NAME_MAX, 'regex:'.self::NAME_PATTERN],
             'region' => ['required', 'string', Rule::in(Prefectures::all())],
-        ]);
+        ];
     }
 
     /**
-     * 本人確認済みユーザー向け（基本情報は変更不可・都道府県のみ検証）
+     * 本人確認済みユーザー向け（姓・名は変更不可・都道府県のみ検証）
      *
      * @return array<string, list<string|\Illuminate\Validation\Rules\In>>
      */
@@ -61,10 +63,6 @@ class UserBasicInfoRules
         return [
             'last_name' => ['required', Rule::in([$user->last_name])],
             'first_name' => ['required', Rule::in([$user->first_name])],
-            'birthdate' => [
-                'required',
-                Rule::in([$user->birthdate?->format('Y-m-d')]),
-            ],
             'region' => ['required', 'string', Rule::in(Prefectures::all())],
         ];
     }
@@ -90,7 +88,6 @@ class UserBasicInfoRules
             'region.in' => '都道府県を正しく選択してください。',
             'last_name.in' => '本人確認後は姓を変更できません。',
             'first_name.in' => '本人確認後は名を変更できません。',
-            'birthdate.in' => '本人確認後は生年月日を変更できません。',
         ];
     }
 

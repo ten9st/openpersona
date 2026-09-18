@@ -2,83 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Post\Models\Bookmark;
+use App\Domain\Post\Models\Post;
+use App\Domain\Post\Presenters\PostAttachmentPresenter;
+use App\Domain\Post\Presenters\PostPresenter;
+use App\Domain\Post\QueryServices\PostQueryService;
+use App\Domain\Post\Services\PostService;
+use App\Domain\Post\Services\PostViewTrackingService;
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
-use App\Models\Bookmark;
-use App\Models\Post;
-use App\Models\PostSource;
-use App\Models\PostViewRecord;
 use App\Models\User;
-use App\Support\PostAttachmentPresenter;
-use App\Support\PostListPresenter;
 use App\Support\PublicProfilePresenter;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Laravel\Sanctum\PersonalAccessToken;
 
 class PostController extends Controller
 {
-    private const VIEWED_POST_SESSION_PREFIX = 'viewed_post_';
-
-    private const CORRECTION_TITLE_PREFIX = '【訂正】';
+    public function __construct(
+        private PostQueryService $postQueryService,
+        private PostService $postService,
+        private PostViewTrackingService $postViewTrackingService,
+    ) {}
 
     public static function clearViewedPostsFromSession(Request $request): void
     {
-        foreach (array_keys($request->session()->all()) as $key) {
-            if (str_starts_with($key, self::VIEWED_POST_SESSION_PREFIX)) {
-                $request->session()->forget($key);
-            }
-        }
-    }
-
-    private function resolveAccessToken(Request $request): ?PersonalAccessToken
-    {
-        $token = $request->bearerToken();
-
-        if ($token === null) {
-            return null;
-        }
-
-        $accessToken = PersonalAccessToken::findToken($token);
-
-        return $accessToken instanceof PersonalAccessToken ? $accessToken : null;
-    }
-
-    private function hasViewedPost(Request $request, Post $post, ?PersonalAccessToken $accessToken): bool
-    {
-        if ($accessToken !== null) {
-            return PostViewRecord::query()
-                ->where('post_id', $post->id)
-                ->where('personal_access_token_id', $accessToken->id)
-                ->exists();
-        }
-
-        return $request->session()->has(self::VIEWED_POST_SESSION_PREFIX.$post->id);
-    }
-
-    private function isPostAuthor(Post $post, ?PersonalAccessToken $accessToken): bool
-    {
-        if ($accessToken === null) {
-            return false;
-        }
-
-        return $accessToken->tokenable_type === User::class
-            && (int) $accessToken->tokenable_id === (int) $post->user_id;
-    }
-
-    private function recordPostView(Request $request, Post $post, ?PersonalAccessToken $accessToken): void
-    {
-        if ($accessToken !== null) {
-            PostViewRecord::create([
-                'post_id' => $post->id,
-                'personal_access_token_id' => $accessToken->id,
-            ]);
-
-            return;
-        }
-
-        $request->session()->put(self::VIEWED_POST_SESSION_PREFIX.$post->id, true);
+        PostViewTrackingService::clearViewedPostsFromSession($request);
     }
 
     public function index(Request $request)
@@ -92,26 +40,14 @@ class PostController extends Controller
 
         $perPage = $validated['per_page'] ?? 20;
 
-        $query = Post::query()
-            ->select(PostListPresenter::selectColumns())
-            ->withCount(['bookmarks as bookmark_count'])
-            ->with(PostListPresenter::eagerLoads())
-            ->where('status', '!=', 'deleted')
-            ->where('status', 'published')
-            ->latest('published_at');
-
-        if (! empty($validated['category_id'])) {
-            $query->where('category_id', $validated['category_id']);
-        }
-
-        if (! empty($validated['tag'])) {
-            $query->whereHas('tags', fn ($tagQuery) => $tagQuery->where('slug', $validated['tag']));
-        }
-
-        $posts = $query->paginate($perPage);
+        $posts = $this->postQueryService->paginatePublished(
+            $validated['category_id'] ?? null,
+            $validated['tag'] ?? null,
+            $perPage,
+        );
 
         $items = collect($posts->items())
-            ->map(fn (Post $post) => PostListPresenter::format($post))
+            ->map(fn (Post $post) => PostPresenter::format($post))
             ->all();
 
         return response()->json([
@@ -127,20 +63,7 @@ class PostController extends Controller
 
     public function drafts(Request $request)
     {
-        $posts = Post::query()
-            ->select([
-                'id',
-                'category_id',
-                'title',
-                'status',
-                'created_at',
-                'updated_at',
-            ])
-            ->with('category:id,name,slug')
-            ->where('user_id', $request->user()->id)
-            ->where('status', 'draft')
-            ->latest('updated_at')
-            ->get();
+        $posts = $this->postQueryService->draftsForUser($request->user()->id);
 
         return response()->json([
             'posts' => $posts,
@@ -153,48 +76,20 @@ class PostController extends Controller
             abort(404);
         }
 
-        $accessToken = $this->resolveAccessToken($request);
+        $accessToken = $this->postViewTrackingService->resolveAccessToken($request);
 
-        if ($post->status !== 'published' && ! $this->isPostAuthor($post, $accessToken)) {
+        if ($post->status !== 'published' && ! $this->postViewTrackingService->isPostAuthor($post, $accessToken)) {
             abort(404);
         }
 
-        if ($post->status === 'published'
-            && ! $this->hasViewedPost($request, $post, $accessToken)
-            && ! $this->isPostAuthor($post, $accessToken)) {
-            $post->increment('view_count');
-            $this->recordPostView($request, $post, $accessToken);
-        }
+        $this->postViewTrackingService->registerViewIfNeeded($request, $post, $accessToken);
 
-        $post->loadCount(['bookmarks as bookmark_count']);
-        $post->load([
-            'user:id,last_name,first_name,birthdate',
-            'user.profile:id,user_id,region',
-            'user.profileVisibilities' => fn ($query) => $query
-                ->select(['id', 'user_id', 'field_name', 'is_public'])
-                ->where('field_name', 'first_name'),
-            'category:id,name,slug',
-            'tags:id,name,slug',
-            'sources',
-            'attachments',
-            'comments' => fn ($query) => $query
-                ->whereHas('post', fn ($postQuery) => $postQuery->where('status', '!=', 'deleted'))
-                ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
-                ->with([
-                    'user:id,last_name,first_name,birthdate',
-                    'user.profile:id,user_id,region',
-                    'user.profileVisibilities' => fn ($q) => $q
-                        ->select(['id', 'user_id', 'field_name', 'is_public'])
-                        ->where('field_name', 'first_name'),
-                    'user.identityVerifications:id,user_id,verification_status',
-                ])
-                ->oldest(),
-        ]);
+        $this->postQueryService->hydrateForShow($post);
 
         $postArray = $post->toArray();
-        $postArray['user'] = $this->formatAuthorForList($post->user);
-        $postArray['sources'] = $this->formatSources($post->sources);
-        $postArray['tags'] = $this->formatTags($post->tags);
+        $postArray['user'] = PublicProfilePresenter::summary($post->user);
+        $postArray['sources'] = PostPresenter::sources($post->sources);
+        $postArray['tags'] = PostPresenter::tags($post->tags);
         $postArray['attachments'] = $post->attachments
             ->map(fn ($attachment) => PostAttachmentPresenter::format($attachment))
             ->values()
@@ -222,27 +117,9 @@ class PostController extends Controller
     public function store(StorePostRequest $request)
     {
         $validated = $request->validated();
-
         $status = $validated['status'] ?? 'draft';
 
-        $post = Post::create([
-            'user_id' => $request->user()->id,
-            'category_id' => $validated['category_id'],
-            'title' => $validated['title'],
-            'body' => $validated['body'],
-            'status' => $status,
-            'published_at' => $status === 'published' ? Carbon::now() : null,
-        ]);
-
-        if (array_key_exists('sources', $validated)) {
-            $this->syncSources($post, $validated['sources']);
-        }
-
-        if (array_key_exists('tag_ids', $validated)) {
-            $post->tags()->sync($validated['tag_ids']);
-        }
-
-        $post->load(['sources', 'tags:id,name,slug']);
+        $post = $this->postService->store($request->user(), $validated);
 
         return response()->json([
             'message' => $status === 'published'
@@ -250,8 +127,8 @@ class PostController extends Controller
                 : '下書きを保存しました。',
             'post' => [
                 ...$post->toArray(),
-                'sources' => $this->formatSources($post->sources),
-                'tags' => $this->formatTags($post->tags),
+                'sources' => PostPresenter::sources($post->sources),
+                'tags' => PostPresenter::tags($post->tags),
             ],
         ], 201);
     }
@@ -259,27 +136,9 @@ class PostController extends Controller
     public function update(UpdatePostRequest $request, Post $post)
     {
         $validated = $request->validated();
-
         $status = $validated['status'] ?? $post->status;
-        $publishedAt = $post->published_at;
 
-        if ($status === 'published' && $publishedAt === null) {
-            $publishedAt = Carbon::now();
-        } elseif ($status === 'draft') {
-            $publishedAt = null;
-        }
-
-        $post->update([
-            ...array_intersect_key($validated, array_flip(['category_id', 'title', 'body'])),
-            'status' => $status,
-            'published_at' => $publishedAt,
-        ]);
-
-        if (array_key_exists('sources', $validated)) {
-            $this->syncSources($post, $validated['sources']);
-        }
-
-        $post = $post->fresh(['sources']);
+        $post = $this->postService->update($post, $validated);
 
         return response()->json([
             'message' => $status === 'published'
@@ -287,7 +146,7 @@ class PostController extends Controller
                 : '下書きを保存しました。',
             'post' => [
                 ...$post->toArray(),
-                'sources' => $this->formatSources($post->sources),
+                'sources' => PostPresenter::sources($post->sources),
             ],
         ]);
     }
@@ -300,34 +159,14 @@ class PostController extends Controller
             abort(404);
         }
 
-        $post->load('sources');
-
-        $copy = Post::create([
-            'user_id' => $request->user()->id,
-            'category_id' => $post->category_id,
-            'title' => $this->correctionTitle($post->title),
-            'body' => $post->body,
-            'status' => 'draft',
-            'published_at' => null,
-        ]);
-
-        foreach ($post->sources as $source) {
-            $copy->sources()->create([
-                'source_type' => $source->source_type,
-                'title' => $source->title,
-                'url' => $source->url,
-                'note' => $source->note,
-            ]);
-        }
-
-        $copy->load('sources');
+        $copy = $this->postService->copy($request->user(), $post);
 
         return response()->json([
             'message' => '訂正用の下書きを作成しました。内容を確認して公開してください。',
             'copied_from_post_id' => $post->id,
             'post' => [
                 ...$copy->toArray(),
-                'sources' => $this->formatSources($copy->sources),
+                'sources' => PostPresenter::sources($copy->sources),
             ],
         ], 201);
     }
@@ -336,72 +175,10 @@ class PostController extends Controller
     {
         Gate::authorize('delete', $post);
 
-        $post->update(['status' => 'deleted']);
+        $this->postService->destroy($post);
 
         return response()->json([
             'message' => '投稿を削除しました。',
         ]);
-    }
-
-    private function correctionTitle(string $title): string
-    {
-        if (str_starts_with($title, self::CORRECTION_TITLE_PREFIX)) {
-            return $title;
-        }
-
-        return self::CORRECTION_TITLE_PREFIX.$title;
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $sources
-     */
-    private function syncSources(Post $post, array $sources): void
-    {
-        $post->sources()->delete();
-
-        foreach ($sources as $source) {
-            $post->sources()->create([
-                'source_type' => $source['source_type'] ?? PostSource::TYPE_URL,
-                'title' => $source['title'] ?? null,
-                'url' => $source['url'] ?? null,
-                'note' => $source['note'] ?? null,
-            ]);
-        }
-    }
-
-    /**
-     * @param  \Illuminate\Support\Collection<int, PostSource>  $sources
-     * @return list<array<string, mixed>>
-     */
-    private function formatSources($sources): array
-    {
-        return $sources->map(fn (PostSource $source) => [
-            'id' => $source->id,
-            'source_type' => $source->source_type,
-            'title' => $source->title,
-            'url' => $source->url,
-            'note' => $source->note,
-        ])->values()->all();
-    }
-
-    /**
-     * @param  \Illuminate\Support\Collection<int, \App\Models\Tag>  $tags
-     * @return list<array<string, mixed>>
-     */
-    private function formatTags($tags): array
-    {
-        return $tags->map(fn ($tag) => [
-            'id' => $tag->id,
-            'name' => $tag->name,
-            'slug' => $tag->slug,
-        ])->values()->all();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function formatAuthorForList(User $user): array
-    {
-        return PublicProfilePresenter::summary($user);
     }
 }

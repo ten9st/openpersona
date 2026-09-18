@@ -13,7 +13,6 @@ import { Select } from '@/components/ui/select';
 import { formatTrustScoreRatio } from '@/lib/post-author';
 import { isPrefecture, PREFECTURES } from '@/lib/prefectures';
 import {
-  birthdateInputBounds,
   NAME_MAX,
   parseApiFieldErrors,
   trimBasicInfo,
@@ -100,8 +99,6 @@ const defaultForm = (): ProfileForm => ({
 });
 
 const API_BASE = 'http://localhost:8000/api';
-
-const birthdateBounds = birthdateInputBounds();
 
 const FieldError = ({ message }: { message?: string }) =>
   message ? (
@@ -242,7 +239,7 @@ export default function ProfilePage() {
       return;
     }
 
-    setBasicInfoLocked(Boolean(data.meta?.basic_info_locked));
+    setBasicInfoLocked(Boolean(data.meta?.basic_info_locked?.last_name));
     setIdentityVerified(Boolean(data.meta?.identity_verified));
     setEmail(data.user.email ?? '');
     setTrustScore(data.trust_score ?? null);
@@ -271,12 +268,12 @@ export default function ProfilePage() {
     const trimmedBasicInfo = trimBasicInfo({
       last_name: form.last_name,
       first_name: form.first_name,
-      birthdate: form.birthdate,
       region: form.region,
     });
 
     const validationErrors = validateUserBasicInfo(trimmedBasicInfo, {
       requireRegion: true,
+      skipBirthdate: true,
     });
 
     if (Object.keys(validationErrors).length > 0) {
@@ -298,7 +295,6 @@ export default function ProfilePage() {
       body: JSON.stringify({
         last_name: trimmedBasicInfo.last_name,
         first_name: trimmedBasicInfo.first_name,
-        birthdate: trimmedBasicInfo.birthdate,
         biography: form.biography || null,
         occupation: form.occupation || null,
         region: trimmedBasicInfo.region,
@@ -369,7 +365,7 @@ export default function ProfilePage() {
             </p>
             {basicInfoLocked && (
               <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted">
-                本人確認済みのため、姓・名・生年月日・メールアドレスは変更できません。都道府県・職業・自己紹介などは引き続き編集できます。
+                本人確認済みのため、姓・名は変更できません。都道府県・職業・自己紹介などは引き続き編集できます。
               </p>
             )}
             {trustScore && (
@@ -378,17 +374,13 @@ export default function ProfilePage() {
               </p>
             )}
 
-            {email && (
-              <Label>
-                メールアドレス
-                <Input value={email} disabled readOnly />
-                {basicInfoLocked && (
-                  <span className="mt-1 text-xs font-normal text-muted">
-                    本人確認後は変更できません
-                  </span>
-                )}
-              </Label>
-            )}
+            <Label>
+              メールアドレス
+              <Input type="email" value={email} disabled />
+              <p className="mt-1 text-xs font-normal text-muted">
+                メールアドレスは変更できません
+              </p>
+            </Label>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Label>
@@ -460,19 +452,10 @@ export default function ProfilePage() {
 
             <Label>
               生年月日
-              <Input
-                type="date"
-                value={form.birthdate}
-                min={birthdateBounds.min}
-                max={birthdateBounds.max}
-                disabled={basicInfoLocked}
-                readOnly={basicInfoLocked}
-                onChange={(e) => {
-                  clearBasicInfoError('birthdate');
-                  setForm({ ...form, birthdate: e.target.value });
-                }}
-              />
-              <FieldError message={basicInfoErrors.birthdate} />
+              <Input type="date" value={form.birthdate} disabled />
+              <p className="mt-1 text-xs font-normal text-muted">
+                生年月日は変更できません
+              </p>
               <span className="mt-1 text-xs font-normal text-muted">
                 投稿一覧に常に表示（13歳以上120歳以下）
               </span>

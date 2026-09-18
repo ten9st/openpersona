@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Domain\Post\Models\Bookmark;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -103,5 +104,20 @@ class User extends Authenticatable
     public function hasLockedBasicInfo(): bool
     {
         return $this->isIdentityVerified();
+    }
+
+    /**
+     * @return array{email: bool, birthdate: bool, last_name: bool, first_name: bool}
+     */
+    public function basicInfoLockedFields(): array
+    {
+        $nameLocked = $this->hasLockedBasicInfo();
+
+        return [
+            'email' => true,
+            'birthdate' => true,
+            'last_name' => $nameLocked,
+            'first_name' => $nameLocked,
+        ];
     }
 }

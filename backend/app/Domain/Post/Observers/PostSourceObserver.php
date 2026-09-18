@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Observers;
+namespace App\Domain\Post\Observers;
 
-use App\Models\PostSource;
+use App\Domain\Post\Models\PostSource;
 use App\Services\TrustScoreService;
 
 class PostSourceObserver

@@ -8,8 +8,8 @@
 ・姓・年齢・地域は常に表示
 ・名の公開は profile_visibilities で制御
 ・認証系の中心
-・本人確認前は全項目変更可
-・本人確認後は基本情報（姓・名・生年月日・メールアドレス）の変更不可
+・本人確認前は姓・名のみ変更可（email・生年月日は常に変更不可）
+・本人確認後は姓・名の変更不可
 
 users
 - id
@@ -266,8 +266,9 @@ trust_scores
 本人確認
 
 ポイント
-・verification_status が verified になると基本情報がロックされる
-・ロック対象：姓・名・生年月日・メールアドレス
+・verification_status が verified になると姓・名がロックされる
+・email・生年月日は常に変更不可
+・ロック対象（本人確認後）：姓・名
 ・職業・地域・biography は本人確認後も変更可
 
 identity_verifications

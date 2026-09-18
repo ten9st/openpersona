@@ -96,6 +96,9 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
+            <p className="mt-1 text-xs font-normal text-muted">
+              登録後は変更できません
+            </p>
           </Label>
 
           <Label>
@@ -154,6 +157,9 @@ export default function RegisterPage() {
               value={birthdate}
               onChange={(e) => setBirthdate(e.target.value)}
             />
+            <p className="mt-1 text-xs font-normal text-muted">
+              登録後は変更できません
+            </p>
           </Label>
 
           <Button onClick={register} className="w-full">
