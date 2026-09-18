@@ -4,6 +4,7 @@ namespace App\Domain\Post\QueryServices;
 
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Presenters\PostPresenter;
+use App\Domain\Profile\QueryServices\PublicProfileQueryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -56,10 +57,7 @@ class PostQueryService
         $post->loadCount(['bookmarks as bookmark_count']);
         $post->load([
             'user:id,last_name,first_name,birthdate',
-            'user.profile:id,user_id,region',
-            'user.profileVisibilities' => fn ($query) => $query
-                ->select(['id', 'user_id', 'field_name', 'is_public'])
-                ->where('field_name', 'first_name'),
+            ...PublicProfileQueryService::summaryRelations('user'),
             'category:id,name,slug',
             'tags:id,name,slug',
             'sources',
@@ -69,11 +67,7 @@ class PostQueryService
                 ->select(['id', 'post_id', 'user_id', 'body', 'created_at'])
                 ->with([
                     'user:id,last_name,first_name,birthdate',
-                    'user.profile:id,user_id,region',
-                    'user.profileVisibilities' => fn ($q) => $q
-                        ->select(['id', 'user_id', 'field_name', 'is_public'])
-                        ->where('field_name', 'first_name'),
-                    'user.identityVerifications:id,user_id,verification_status',
+                    ...PublicProfileQueryService::summaryRelations('user'),
                 ])
                 ->oldest(),
         ]);

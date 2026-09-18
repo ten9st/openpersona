@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Domain\Post\Models\Category;
 use App\Domain\Post\Models\Comment;
 use App\Domain\Post\Models\Post;
+use App\Models\IdentityVerification;
+use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -68,6 +70,35 @@ class CommentTest extends TestCase
             'user_id' => $commenter->id,
             'body' => 'コメントです。',
         ]);
+    }
+
+    public function test_comment_author_max_score_is_correct_even_when_trust_score_is_missing(): void
+    {
+        $author = User::factory()->create();
+        $commenter = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($author, $category);
+
+        IdentityVerification::create([
+            'user_id' => $commenter->id,
+            'verification_method' => 'driver_license',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        // TrustScoreの行自体が存在しない状態を再現する。
+        TrustScore::where('user_id', $commenter->id)->delete();
+
+        Comment::create([
+            'post_id' => $post->id,
+            'user_id' => $commenter->id,
+            'body' => 'コメントです。',
+        ]);
+
+        $this->getJson("/api/posts/{$post->id}")
+            ->assertOk()
+            ->assertJsonPath('post.comments.0.user.identity_verified', true)
+            ->assertJsonPath('post.comments.0.user.trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
     }
 
     public function test_guest_can_view_comments_on_post_detail(): void

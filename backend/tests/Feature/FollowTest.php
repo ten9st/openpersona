@@ -5,8 +5,11 @@ namespace Tests\Feature;
 use App\Domain\Post\Models\Category;
 use App\Domain\Post\Models\Post;
 use App\Models\Follow;
+use App\Models\IdentityVerification;
+use App\Models\TrustScore;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -139,6 +142,74 @@ class FollowTest extends TestCase
             ->assertJsonCount(1, 'users')
             ->assertJsonPath('users.0.id', $followed->id)
             ->assertJsonPath('users.0.last_name', 'フォロイー');
+    }
+
+    public function test_followers_list_shows_correct_max_score_without_per_user_query_increase(): void
+    {
+        $target = User::factory()->create();
+
+        for ($i = 0; $i < 3; $i++) {
+            $follower = User::factory()->create();
+
+            IdentityVerification::create([
+                'user_id' => $follower->id,
+                'verification_method' => 'driver_license',
+                'verification_status' => IdentityVerification::STATUS_VERIFIED,
+                'verified_at' => now(),
+            ]);
+
+            // 本人確認前のTrustScore(max_score=未確認)が同期されずに
+            // 残っている状態を再現する。
+            TrustScore::where('user_id', $follower->id)->update([
+                'max_score' => TrustScore::MAX_SCORE_UNVERIFIED,
+            ]);
+
+            Follow::create([
+                'follower_user_id' => $follower->id,
+                'followed_user_id' => $target->id,
+            ]);
+        }
+
+        Sanctum::actingAs($target);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $response = $this->getJson("/api/users/{$target->id}/followers");
+
+        $queryCountForThreeFollowers = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $response->assertOk()->assertJsonCount(3, 'users');
+
+        foreach ($response->json('users') as $userPayload) {
+            $this->assertTrue($userPayload['identity_verified'], '本人確認状態が正しく反映されていません。');
+            $this->assertSame(
+                TrustScore::MAX_SCORE_VERIFIED,
+                $userPayload['trust_score']['max_score'],
+                'max_scoreが本人確認済みユーザーの表示として正しくありません。'
+            );
+        }
+
+        // フォロワーが1人増えても、クエリ数が比例して増えない(N+1になって
+        // いない)ことを確認する。
+        $extraFollower = User::factory()->create();
+        Follow::create([
+            'follower_user_id' => $extraFollower->id,
+            'followed_user_id' => $target->id,
+        ]);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->getJson("/api/users/{$target->id}/followers")->assertOk();
+        $queryCountForFourFollowers = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame(
+            $queryCountForThreeFollowers,
+            $queryCountForFourFollowers,
+            'フォロワー数の増加に応じてクエリ数が増加しています(N+1の可能性があります)。'
+        );
     }
 
     public function test_timeline_returns_followed_users_posts_in_latest_order(): void

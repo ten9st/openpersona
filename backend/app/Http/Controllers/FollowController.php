@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Presenters\PostPresenter;
 use App\Domain\Post\QueryServices\PostQueryService;
+use App\Domain\Profile\QueryServices\PublicProfileQueryService;
 use App\Models\Follow;
 use App\Models\User;
 use App\Support\PublicProfilePresenter;
@@ -42,7 +43,7 @@ class FollowController extends Controller
     {
         $users = Follow::query()
             ->where('followed_user_id', $user->id)
-            ->with('follower')
+            ->with(['follower' => fn ($query) => $query->with(PublicProfileQueryService::summaryRelations())])
             ->latest()
             ->get()
             ->map(fn (Follow $follow) => PublicProfilePresenter::summary($follow->follower))
@@ -58,7 +59,7 @@ class FollowController extends Controller
     {
         $users = Follow::query()
             ->where('follower_user_id', $user->id)
-            ->with('followed')
+            ->with(['followed' => fn ($query) => $query->with(PublicProfileQueryService::summaryRelations())])
             ->latest()
             ->get()
             ->map(fn (Follow $follow) => PublicProfilePresenter::summary($follow->followed))
