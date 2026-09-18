@@ -305,6 +305,89 @@ class ProfileTest extends TestCase
             ->assertJsonValidationErrors(['last_name']);
     }
 
+    public function test_educations_and_careers_changes_are_reflected_in_score_and_response_immediately(): void
+    {
+        $user = User::factory()->create();
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+        foreach (ProfileVisibility::defaultMap() as $fieldName => $isPublic) {
+            ProfileVisibility::create([
+                'user_id' => $user->id,
+                'field_name' => $fieldName,
+                'is_public' => $isPublic,
+            ]);
+        }
+
+        Sanctum::actingAs($user);
+
+        $basePayload = [
+            'last_name' => $user->last_name,
+            'first_name' => $user->first_name,
+            'biography' => null,
+            'occupation' => null,
+            'region' => '東京都',
+            'visibilities' => ProfileVisibility::defaultMap(),
+        ];
+
+        // 学歴・職歴が0件の状態のスコアを基準値とする(都道府県のみ設定済み)。
+        $baseline = $this->putJson('/api/profile', [
+            ...$basePayload,
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertOk()
+            ->assertJsonPath('educations', [])
+            ->assertJsonPath('careers', [])
+            ->json('trust_score.total_score');
+
+        // 学歴・職歴を追加すると、保存直後のレスポンスに即座に反映される。
+        $afterAdding = $this->putJson('/api/profile', [
+            ...$basePayload,
+            'educations' => [
+                ['school_name' => '追加大学', 'is_public' => true],
+            ],
+            'careers' => [
+                ['company_name' => '追加会社', 'is_current' => true, 'is_public' => true],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonPath('educations.0.school_name', '追加大学')
+            ->assertJsonPath('careers.0.company_name', '追加会社')
+            ->json('trust_score.total_score');
+
+        $this->assertGreaterThan(
+            $baseline,
+            $afterAdding,
+            '学歴・職歴の追加がスコアに反映されていません。'
+        );
+        $this->assertSame(
+            $afterAdding,
+            (int) TrustScore::where('user_id', $user->id)->value('total_score'),
+            'レスポンスのスコアとDB上のスコアが一致していません。'
+        );
+
+        // 学歴・職歴を削除すると、保存直後のレスポンスに即座に反映される。
+        $afterRemoving = $this->putJson('/api/profile', [
+            ...$basePayload,
+            'educations' => [],
+            'careers' => [],
+        ])
+            ->assertOk()
+            ->assertJsonPath('educations', [])
+            ->assertJsonPath('careers', [])
+            ->json('trust_score.total_score');
+
+        $this->assertSame(
+            $baseline,
+            $afterRemoving,
+            '学歴・職歴の削除がスコアに反映されていません。'
+        );
+        $this->assertSame(
+            $afterRemoving,
+            (int) TrustScore::where('user_id', $user->id)->value('total_score'),
+            'レスポンスのスコアとDB上のスコアが一致していません。'
+        );
+    }
+
     public function test_verified_user_can_update_region_and_profile_fields(): void
     {
         $user = User::factory()->create([
