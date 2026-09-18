@@ -5,22 +5,20 @@ namespace App\Domain\Post\Presenters;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostSource;
 use App\Domain\Post\Models\Tag;
+use App\Domain\Profile\QueryServices\PublicProfileQueryService;
 use App\Support\PublicProfilePresenter;
 use Illuminate\Support\Collection;
 
 class PostPresenter
 {
     /**
-     * @return array<int, string>
+     * @return array<int|string, mixed>
      */
     public static function eagerLoads(): array
     {
         return [
             'user:id,last_name,first_name,birthdate',
-            'user.profile:id,user_id,region',
-            'user.profileVisibilities' => fn ($query) => $query
-                ->select(['id', 'user_id', 'field_name', 'is_public'])
-                ->where('field_name', 'first_name'),
+            ...PublicProfileQueryService::summaryRelations('user'),
             'category:id,name,slug',
             'tags:id,name,slug',
         ];

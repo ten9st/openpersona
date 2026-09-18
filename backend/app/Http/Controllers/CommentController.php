@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Post\Models\Comment;
 use App\Domain\Post\Models\Post;
+use App\Domain\Profile\QueryServices\PublicProfileQueryService;
 use App\Support\PublicProfilePresenter;
 use Illuminate\Http\Request;
 
@@ -27,11 +28,7 @@ class CommentController extends Controller
 
         $comment->load([
             'user:id,last_name,first_name,birthdate',
-            'user.profile:id,user_id,region',
-            'user.profileVisibilities' => fn ($query) => $query
-                ->select(['id', 'user_id', 'field_name', 'is_public'])
-                ->where('field_name', 'first_name'),
-            'user.identityVerifications:id,user_id,verification_status',
+            ...PublicProfileQueryService::summaryRelations('user'),
         ]);
 
         $commentArray = $comment->toArray();
