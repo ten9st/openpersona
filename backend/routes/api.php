@@ -60,6 +60,11 @@ Route::post('/register', function (Request $request) {
     ], 201);
 });
 
+// /posts/{post} (下記webグループ内) より先に登録しないと
+// "drafts" が {post} のワイルドカードに吸収され404になるため、
+// このルートだけ先に登録する。
+Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 'drafts']);
+
 // ============================================================
 // webミドルウェアを使用するAPI
 // セッションCookieが必要な処理
@@ -122,7 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [ProfileController::class, 'update']);
 
     // 投稿
-    Route::get('/posts/drafts', [PostController::class, 'drafts']);
+    // (/posts/drafts は /posts/{post} との衝突を避けるため上部で登録済み)
     Route::post('/posts', [PostController::class, 'store']);
     Route::post('/posts/{post}/copy', [PostController::class, 'copy']);
     Route::put('/posts/{post}', [PostController::class, 'update']);
