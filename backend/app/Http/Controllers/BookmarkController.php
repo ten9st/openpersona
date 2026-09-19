@@ -2,32 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Post\Models\Bookmark;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Presenters\PostPresenter;
+use App\Domain\Post\QueryServices\BookmarkQueryService;
+use App\Domain\Post\Services\BookmarkService;
 use Illuminate\Http\Request;
 
 class BookmarkController extends Controller
 {
+    public function __construct(
+        private BookmarkQueryService $bookmarkQueryService,
+        private BookmarkService $bookmarkService,
+    ) {}
+
     public function index(Request $request)
     {
-        $user = $request->user();
-
-        $bookmarks = Bookmark::query()
-            ->where('user_id', $user->id)
-            ->whereHas('post', fn ($query) => $query
-                ->where('status', 'published'))
-            ->with([
-                'post' => fn ($query) => $query
-                    ->select(PostPresenter::selectColumns())
-                    ->withCount(['bookmarks as bookmark_count'])
-                    ->with(PostPresenter::eagerLoads()),
-            ])
-            ->latest()
-            ->get();
-
-        $posts = $bookmarks
-            ->map(fn (Bookmark $bookmark) => PostPresenter::format($bookmark->post, true))
+        $posts = $this->bookmarkQueryService->bookmarkedPosts($request->user())
+            ->map(fn (Post $post) => PostPresenter::format($post, true))
             ->values()
             ->all();
 
@@ -38,40 +29,23 @@ class BookmarkController extends Controller
 
     public function store(Request $request, Post $post)
     {
-        if ($post->status !== 'published') {
-            abort(404);
-        }
-
-        Bookmark::firstOrCreate([
-            'user_id' => $request->user()->id,
-            'post_id' => $post->id,
-        ]);
+        $this->bookmarkService->add($request->user(), $post);
 
         return response()->json([
             'message' => '付箋を追加しました。',
-            'bookmark_count' => $this->bookmarkCount($post),
+            'bookmark_count' => $this->bookmarkQueryService->bookmarkCount($post),
             'is_bookmarked' => true,
         ]);
     }
 
     public function destroy(Request $request, Post $post)
     {
-        Bookmark::query()
-            ->where('user_id', $request->user()->id)
-            ->where('post_id', $post->id)
-            ->delete();
+        $this->bookmarkService->remove($request->user(), $post);
 
         return response()->json([
             'message' => '付箋を解除しました。',
-            'bookmark_count' => $this->bookmarkCount($post),
+            'bookmark_count' => $this->bookmarkQueryService->bookmarkCount($post),
             'is_bookmarked' => false,
         ]);
-    }
-
-    private function bookmarkCount(Post $post): int
-    {
-        return Bookmark::query()
-            ->where('post_id', $post->id)
-            ->count();
     }
 }
