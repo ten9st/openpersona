@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Presenters\PostPresenter;
 use App\Domain\Post\QueryServices\PostQueryService;
-use App\Domain\Profile\QueryServices\PublicProfileQueryService;
-use App\Models\Follow;
+use App\Domain\Social\QueryServices\FollowQueryService;
+use App\Domain\Social\Services\FollowService;
 use App\Models\User;
 use App\Support\PublicProfilePresenter;
 use Illuminate\Http\Request;
@@ -15,13 +15,13 @@ class FollowController extends Controller
 {
     public function __construct(
         private PostQueryService $postQueryService,
+        private FollowQueryService $followQueryService,
+        private FollowService $followService,
     ) {}
 
     public function timeline(Request $request)
     {
-        $followedUserIds = Follow::query()
-            ->where('follower_user_id', $request->user()->id)
-            ->pluck('followed_user_id');
+        $followedUserIds = $this->followQueryService->followedUserIds($request->user());
 
         if ($followedUserIds->isEmpty()) {
             return response()->json([
@@ -41,12 +41,8 @@ class FollowController extends Controller
 
     public function followers(Request $request, User $user)
     {
-        $users = Follow::query()
-            ->where('followed_user_id', $user->id)
-            ->with(['follower' => fn ($query) => $query->with(PublicProfileQueryService::summaryRelations())])
-            ->latest()
-            ->get()
-            ->map(fn (Follow $follow) => PublicProfilePresenter::summary($follow->follower))
+        $users = $this->followQueryService->followers($user)
+            ->map(fn (User $follower) => PublicProfilePresenter::summary($follower))
             ->values()
             ->all();
 
@@ -57,12 +53,8 @@ class FollowController extends Controller
 
     public function following(Request $request, User $user)
     {
-        $users = Follow::query()
-            ->where('follower_user_id', $user->id)
-            ->with(['followed' => fn ($query) => $query->with(PublicProfileQueryService::summaryRelations())])
-            ->latest()
-            ->get()
-            ->map(fn (Follow $follow) => PublicProfilePresenter::summary($follow->followed))
+        $users = $this->followQueryService->following($user)
+            ->map(fn (User $followed) => PublicProfilePresenter::summary($followed))
             ->values()
             ->all();
 
@@ -73,51 +65,25 @@ class FollowController extends Controller
 
     public function store(Request $request, User $user)
     {
-        $follower = $request->user();
-
-        if ((int) $follower->id === (int) $user->id) {
-            abort(403, '自分自身をフォローすることはできません。');
-        }
-
-        Follow::firstOrCreate([
-            'follower_user_id' => $follower->id,
-            'followed_user_id' => $user->id,
-        ]);
+        $this->followService->follow($request->user(), $user);
 
         return response()->json([
             'message' => 'フォローしました。',
-            'followers_count' => $this->followersCount($user),
-            'following_count' => $this->followingCount($user),
+            'followers_count' => $this->followQueryService->followersCount($user),
+            'following_count' => $this->followQueryService->followingCount($user),
             'is_following' => true,
         ]);
     }
 
     public function destroy(Request $request, User $user)
     {
-        Follow::query()
-            ->where('follower_user_id', $request->user()->id)
-            ->where('followed_user_id', $user->id)
-            ->delete();
+        $this->followService->unfollow($request->user(), $user);
 
         return response()->json([
             'message' => 'フォローを解除しました。',
-            'followers_count' => $this->followersCount($user),
-            'following_count' => $this->followingCount($user),
+            'followers_count' => $this->followQueryService->followersCount($user),
+            'following_count' => $this->followQueryService->followingCount($user),
             'is_following' => false,
         ]);
-    }
-
-    private function followersCount(User $user): int
-    {
-        return Follow::query()
-            ->where('followed_user_id', $user->id)
-            ->count();
-    }
-
-    private function followingCount(User $user): int
-    {
-        return Follow::query()
-            ->where('follower_user_id', $user->id)
-            ->count();
     }
 }
