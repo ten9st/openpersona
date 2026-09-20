@@ -49,3 +49,20 @@ UI表示
 信頼度：77%
 
 ★★★★☆
+
+## 添付ファイル(PostAttachment)の保存・削除の失敗時挙動
+
+`PostAttachmentService`（`backend/app/Domain/Post/Services/PostAttachmentService.php`）が対応した内容と、残る制約のメモ。
+
+対応した内容：
+- 保存：`store()`がfalse/例外を返した場合は該当ファイルのDBレコードを作らない。DB登録は`DB::transaction()`でまとめ、途中失敗時は今回分のDB登録をロールバックし、今回保存済みのファイルを後片付け（削除）する。
+- 削除：`delete()`がfalse/例外の場合はDBレコードを消さない。ファイル削除に成功した後だけDBレコードを削除する。
+- 後片付け・削除失敗は`PostAttachmentOperationFailedException`として`report()`で記録し、利用者へは内部詳細を含まない汎用メッセージ＋500を返す（`PostAttachmentController`）。
+- ログのcontextには操作名`operation`を必ず付与する（`store_file`／`register_attachment`／`delete_file`／`delete_record`／`cleanup_file`）。あわせて`post_id`、削除系は`attachment_id`、保存・後片付け系は`file_name`／`file_path`のみ（トークン・ファイル内容は含めない）。
+- 入力の`files`が飛び番号（例: `files[2]`のみ）や`[1, 0]`の順でも、`store()`の入口で`array_values()`により走査順を保ったまま連番化し、ファイルと保存パスの対応ずれ（500・パス入れ替わり）を防ぐ。
+
+残る制約（今回の対応では保証できない）：
+- ファイル操作はDBトランザクションの対象外。DBと完全に原子的ではない。
+- プロセスの強制終了、DBのコミット結果が不明になるような接続障害には対応できない。
+- 「ファイル削除成功後にDBレコード削除が失敗」した場合、ファイルは復元できない。DBレコードは残るため、同じ添付に対して削除を再実行すれば完了できる（file-goneのケースは削除がno-op成功になることを確認済み。ローカル/公開ディスクの挙動として確認、S3等の他ディスクドライバは未確認）。
+- 同時操作対策・ロック方式の変更、キュー化、退避ファイル、論理削除は導入していない。
