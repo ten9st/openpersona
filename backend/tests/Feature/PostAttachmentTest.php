@@ -109,6 +109,105 @@ class PostAttachmentTest extends TestCase
         Storage::disk('public')->assertExists($attachments[1]->file_path);
     }
 
+    public function test_upload_accepts_sparse_file_keys_via_http(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        // files[2]のみ(飛び番号)。入力検証は通過し、201になる必要がある。
+        $this->postJson("/api/posts/{$post->id}/attachments", [
+            'files' => [
+                2 => UploadedFile::fake()->createWithContent('only.pdf', 'CONTENT-ONLY'),
+            ],
+        ])->assertCreated()
+            ->assertJsonCount(1, 'attachments')
+            ->assertJsonPath('attachments.0.file_name', 'only.pdf');
+
+        $attachment = PostAttachment::query()->firstOrFail();
+        $this->assertSame('only.pdf', $attachment->file_name);
+        $this->assertSame('CONTENT-ONLY', Storage::disk('public')->get($attachment->file_path));
+    }
+
+    public function test_upload_keeps_file_and_path_correspondence_when_keys_are_reversed_via_http(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        // キーが[1, 0]の順(走査順は1→0)。
+        $response = $this->postJson("/api/posts/{$post->id}/attachments", [
+            'files' => [
+                1 => UploadedFile::fake()->createWithContent('second.pdf', 'CONTENT-SECOND'),
+                0 => UploadedFile::fake()->createWithContent('first.pdf', 'CONTENT-FIRST'),
+            ],
+        ])->assertCreated()
+            ->assertJsonCount(2, 'attachments');
+
+        $this->assertReversedKeyResult(
+            $response->json('attachments.0.file_name'),
+            $response->json('attachments.1.file_name'),
+        );
+    }
+
+    public function test_service_keeps_scan_order_and_correspondence_for_non_sequential_keys(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+
+        $service = app(PostAttachmentService::class);
+
+        $result = $service->store($post, [
+            1 => UploadedFile::fake()->createWithContent('second.pdf', 'CONTENT-SECOND'),
+            0 => UploadedFile::fake()->createWithContent('first.pdf', 'CONTENT-FIRST'),
+        ]);
+
+        $this->assertSame(['second.pdf', 'first.pdf'], [$result[0]->file_name, $result[1]->file_name]);
+        $this->assertReversedKeyResult($result[0]->file_name, $result[1]->file_name);
+
+        // 飛び番号のみ(2だけ)でも例外にならない。
+        $sparse = $service->store($post, [
+            2 => UploadedFile::fake()->createWithContent('sparse.pdf', 'CONTENT-SPARSE'),
+        ]);
+        $this->assertCount(1, $sparse);
+        $this->assertSame('CONTENT-SPARSE', Storage::disk('public')->get($sparse[0]->file_path));
+    }
+
+    /**
+     * 走査順(second→first)どおりに保存・返却され、各DBレコードの元ファイル名・
+     * パスから読み出した内容がそれぞれ対応するファイルの内容であることを確認する。
+     * (存在確認だけではパスの入れ替わりを検出できないため、内容を比較する。)
+     */
+    private function assertReversedKeyResult(string $firstReturnedName, string $secondReturnedName): void
+    {
+        $this->assertSame('second.pdf', $firstReturnedName);
+        $this->assertSame('first.pdf', $secondReturnedName);
+
+        $records = PostAttachment::query()->orderBy('id')->get();
+        $this->assertCount(2, $records);
+
+        $expected = [
+            'second.pdf' => 'CONTENT-SECOND',
+            'first.pdf' => 'CONTENT-FIRST',
+        ];
+
+        $this->assertSame(['second.pdf', 'first.pdf'], $records->pluck('file_name')->all());
+        $this->assertNotSame($records[0]->file_path, $records[1]->file_path);
+
+        foreach ($records as $record) {
+            $this->assertSame(
+                $expected[$record->file_name],
+                Storage::disk('public')->get($record->file_path),
+                "{$record->file_name}のDBパスから読み出した内容が対応していません。"
+            );
+        }
+    }
+
     public function test_upload_requires_at_least_one_file(): void
     {
         $user = User::factory()->create();

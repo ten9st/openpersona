@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Post\Exceptions\PostAttachmentOperationFailedException;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostAttachment;
 use App\Domain\Post\Presenters\PostAttachmentPresenter;
@@ -25,7 +26,15 @@ class PostAttachmentController extends Controller
             'files.*' => ['required', 'file', new PostAttachmentFile],
         ]);
 
-        $attachments = $this->postAttachmentService->store($post, $validated['files']);
+        try {
+            $attachments = $this->postAttachmentService->store($post, $validated['files']);
+        } catch (PostAttachmentOperationFailedException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => '添付ファイルのアップロードに失敗しました。時間をおいて再度お試しください。',
+            ], 500);
+        }
 
         return response()->json([
             'message' => '添付ファイルをアップロードしました。',
@@ -39,7 +48,15 @@ class PostAttachmentController extends Controller
     {
         Gate::authorize('attach', $post);
 
-        $this->postAttachmentService->destroy($post, $attachment);
+        try {
+            $this->postAttachmentService->destroy($post, $attachment);
+        } catch (PostAttachmentOperationFailedException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => '添付ファイルの削除に失敗しました。時間をおいて再度お試しください。',
+            ], 500);
+        }
 
         return response()->json([
             'message' => '添付ファイルを削除しました。',
