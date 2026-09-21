@@ -1,9 +1,6 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CommentController;
@@ -13,10 +10,7 @@ use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicProfileController;
 use App\Http\Controllers\TagController;
-use App\Models\Profile;
-use App\Models\ProfileVisibility;
-use App\Models\User;
-use App\Support\UserBasicInfoRules;
+use Illuminate\Support\Facades\Route;
 
 // ============================================================
 // 認証不要のAPI
@@ -27,38 +21,7 @@ Route::get('/tags', [TagController::class, 'index']);
 Route::get('/users/{user}', [PublicProfileController::class, 'show']);
 
 // 新規ユーザー登録
-Route::post('/register', function (Request $request) {
-    $request->merge(UserBasicInfoRules::trimInput($request->all()));
-
-    $validated = $request->validate([
-        'email' => ['required', 'email', 'unique:users,email'],
-        'password' => ['required', 'min:8'],
-        ...UserBasicInfoRules::userRules(),
-    ], UserBasicInfoRules::messages());
-
-    $user = User::create([
-        'email' => $validated['email'],
-        'password' => Hash::make($validated['password']),
-        'last_name' => $validated['last_name'],
-        'first_name' => $validated['first_name'],
-        'birthdate' => $validated['birthdate'],
-    ]);
-
-    Profile::create(['user_id' => $user->id]);
-
-    foreach (ProfileVisibility::defaultMap() as $fieldName => $isPublic) {
-        ProfileVisibility::create([
-            'user_id' => $user->id,
-            'field_name' => $fieldName,
-            'is_public' => $isPublic,
-        ]);
-    }
-
-    return response()->json([
-        'message' => 'ユーザー登録が完了しました。',
-        'user' => $user,
-    ], 201);
-});
+Route::post('/register', [AuthController::class, 'register']);
 
 // /posts/{post} (下記webグループ内) より先に登録しないと
 // "drafts" が {post} のワイルドカードに吸収され404になるため、
@@ -70,36 +33,7 @@ Route::middleware('auth:sanctum')->get('/posts/drafts', [PostController::class, 
 // セッションCookieが必要な処理
 // ============================================================
 Route::middleware('web')->group(function () {
-    Route::post('/login', function (Request $request) {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
-        ]);
-    
-        if (!Auth::attempt($credentials)) {
-            return response()->json([
-                'message' => 'メールアドレスまたはパスワードが違います。',
-            ], 401);
-        }
-    
-        PostController::clearViewedPostsFromSession($request);
-    
-        $user = User::where('email', $credentials['email'])->firstOrFail();
-        $token = $user->createToken('openpersona_token')->plainTextToken;
-    
-        return response()->json([
-            'message' => 'ログインが成功しました。',
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'email' => $user->email,
-                'last_name' => $user->last_name,
-                'first_name' => $user->first_name,
-                'birthdate' => $user->birthdate,
-            ],
-        ]);
-    });
-
+    Route::post('/login', [AuthController::class, 'login']);
 
     // 閲覧数カウントのセッション管理のためwebミドルウェアを使用
     Route::get('/posts/{post}', [PostController::class, 'show']);
@@ -110,17 +44,8 @@ Route::middleware('web')->group(function () {
 // ============================================================
 Route::middleware('auth:sanctum')->group(function () {
     // 認証ユーザー情報
-    Route::get('/me', function (Request $request) {
-        return response()->json([
-            'user' => $request->user(),
-        ]);
-    });
-    Route::post('/logout', function (Request $request) {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json([
-            'message' => 'ログアウトしました。',
-        ]);
-    });
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     // プロフィール
     Route::get('/profile', [ProfileController::class, 'show']);

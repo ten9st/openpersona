@@ -182,6 +182,8 @@ openpersona/
 - `users` レコード作成（本名・生年月日は必須）
 - `profiles` レコードを自動作成
 - `profile_visibilities` をデフォルト値で作成（`first_name` / `biography` / `occupation` は非公開）
+- 上記に加え、`UserObserver` により `trust_scores` も作成される
+- 登録処理（`AuthService::register()`）は1つのDBトランザクション内で実行され、途中で失敗した場合は `users` / `trust_scores` / `profiles` / `profile_visibilities` のすべてがロールバックされる
 
 ### 認可
 
