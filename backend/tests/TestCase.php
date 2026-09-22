@@ -4,7 +4,6 @@ namespace Tests;
 
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Bootstrap\LoadConfiguration;
 use Illuminate\Foundation\Testing\CachedState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Foundation\Testing\WithCachedConfig;
@@ -31,7 +30,9 @@ abstract class TestCase extends BaseTestCase
      * 継承元クラスのメソッドより優先される)。
      *
      * ガードはDBに一切接続しない。判定ロジックの単体テストは
-     * tests/Unit/Support/TestDatabaseGuardTest.php を参照。
+     * tests/Unit/Support/TestDatabaseGuardTest.php を、起動経路との結合検証は
+     * tests/Integration/DatabaseGuardBootstrapIntegrationTest.php を参照
+     * (どちらもここと同じ TestDatabaseGuard::registerHook() を使う)。
      */
     public function createApplication()
     {
@@ -47,9 +48,7 @@ abstract class TestCase extends BaseTestCase
             $app->booting(fn () => $this->markRoutesCached($app));
         }
 
-        $app->afterBootstrapping(LoadConfiguration::class, function ($app) {
-            TestDatabaseGuard::assertSafe($app, $this);
-        });
+        TestDatabaseGuard::registerHook($app, $this);
 
         $app->make(Kernel::class)->bootstrap();
 
