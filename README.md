@@ -768,6 +768,24 @@ Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `Public
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,...` | CORS 許可オリジン |
 | `SANCTUM_STATEFUL_DOMAINS` | localhost 系 | SPA 認証ドメイン |
 
+### Frontend E2E（Playwright）
+
+ログインを伴う E2E テスト（`frontend/e2e/`）は、認証情報を環境変数から読み込む。実在のメールアドレス・パスワードや固定パスワードをコードに直書きしない。
+
+- 設定例：`frontend/.env.e2e.example`（値は空、コミット対象）
+- 実際の値：`frontend/.env.e2e.local` にコピーして設定する（`.gitignore` により Git 管理対象外）
+- 読み込み元：`frontend/playwright.config.ts` が `.env.e2e.local` を読み込む。`next dev` / `next build` など通常の開発・ビルドはこのファイルを参照しない
+- 未設定・空文字の場合：値は表示せず、不足している変数名を示してテストを失敗させる（黙ってスキップして成功扱いにはしない）
+
+| 変数 | 用途 |
+|------|------|
+| `E2E_USER_EMAIL` | E2E ログインに使うアカウントのメールアドレス |
+| `E2E_USER_PASSWORD` | 同上のパスワード |
+
+**この値には、本番・開発 DB 上の実アカウントではなく、隔離されたテスト環境に用意した E2E 専用アカウントの認証情報のみを設定すること。** `NEXT_PUBLIC_` などブラウザへ公開される変数名にはしない。
+
+**Node バージョンの前提：** `.env.e2e.local` の読み込みには Node 標準の `process.loadEnvFile()` を使っている。`frontend/package.json` に `engines` の指定は無く、リポジトリとしてプロジェクトが要求する Node バージョンを固定していない。`infra/frontend/Dockerfile` は `node:20-alpine`（フローティングタグ、厳密なパッチバージョンは image pull 時点に依存）を使用しており、実際に解決される正確なバージョンは未確認。`frontend/node_modules/@types/node`（インストール済みバージョン `20.19.39`）の型定義では `process.loadEnvFile()` は `@since v20.12.0` と記載されている。Next.js 自体は `engines.node >= 20.9.0` を要求するため、20.9.0〜20.11.x のように `process.loadEnvFile()` はあっても安定版としては未対応のNodeで動かす可能性がある（挙動未確認）。CI・本番相当環境で使う場合は、Node バージョンを `20.12.0` 以上に明示的に固定することを推奨する（`.nvmrc` や `engines` の追加は今回未実施、要検討）。
+
 ---
 
 ## DB 更新の方針
