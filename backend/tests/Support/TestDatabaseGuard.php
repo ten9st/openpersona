@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Foundation\Bootstrap\LoadConfiguration;
 use Illuminate\Support\ConfigurationUrlParser;
 use ReflectionException;
 use ReflectionProperty;
@@ -21,9 +22,32 @@ use RuntimeException;
  *   (同じ判定ロジックを再実装しない)。
  * - 例外メッセージには接続名と拒否理由の分類のみを含め、URL・パスワード・
  *   設定配列全体などの値は一切含めない。
+ * - フック登録(registerHook)は tests/TestCase.php と、
+ *   tests/Integration/DatabaseGuardBootstrapIntegrationTest.php の両方が同じメソッドを
+ *   呼ぶ。登録処理そのものを検証側に複製しない。
  */
 class TestDatabaseGuard
 {
+    /**
+     * $app に対し、Illuminate\Foundation\Bootstrap\LoadConfiguration のbootstrap完了直後
+     * (RegisterProviders/BootProvidersより前)に assertSafe() を実行するリスナーを登録する。
+     *
+     * $app->make(Kernel::class)->bootstrap() が呼ばれる前に呼ぶ契約とする
+     * (Illuminate\Foundation\Application::bootstrapWith() は各bootstrapperの実行直後に
+     * 'bootstrapped: <bootstrapper>' イベントを同期的にdispatchするため、リスナー登録が
+     * bootstrap()呼び出しより後だと間に合わない)。
+     *
+     * @param  object|null  $testCase  assertSafe() にそのまま渡す。tests/TestCase.php からは
+     *                                 現在実行中のテストインスタンスを、結合テストからはnullまたはダミーの
+     *                                 テストケース相当オブジェクトを渡す。
+     */
+    public static function registerHook(Application $app, ?object $testCase = null): void
+    {
+        $app->afterBootstrapping(LoadConfiguration::class, function ($app) use ($testCase) {
+            self::assertSafe($app, $testCase);
+        });
+    }
+
     /**
      * $app が確定した実効設定を検査し、許可されない接続があれば例外を投げて停止する。
      *
