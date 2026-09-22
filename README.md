@@ -754,6 +754,8 @@ composer test
 
 Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `PublicProfileTest`, `CategoryTest`, `TrustScoreSourceTest` など（計 53 件）
 
+テスト用DBを誤って開発用DBに向けないための`TestDatabaseGuard`（`backend/tests/Support/TestDatabaseGuard.php`）を導入済み。仕組み・保証範囲・検証済み/未検証の区別は [`docs/memo.md`](docs/memo.md) の「テスト用DB安全ガード」を参照。
+
 ---
 
 ## 環境変数
