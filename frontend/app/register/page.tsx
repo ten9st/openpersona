@@ -31,8 +31,8 @@ export default function RegisterPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('password123');
-  const [passwordConfirm, setPasswordConfirm] = useState('password123');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [passwordConfirmError, setPasswordConfirmError] = useState('');
   const [lastName, setLastName] = useState('山田');
   const [firstName, setFirstName] = useState('太郎');
