@@ -15,7 +15,6 @@ export type PendingAttachment = {
 };
 
 const IMAGE_ACCEPT = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const PDF_ACCEPT = ['application/pdf'];
 
 export const ATTACHMENT_ACCEPT =
   '.jpg,.jpeg,.png,.gif,.webp,.pdf,image/jpeg,image/png,image/gif,image/webp,application/pdf';
