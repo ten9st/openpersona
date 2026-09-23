@@ -752,9 +752,11 @@ cd backend
 composer test
 ```
 
-Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `PublicProfileTest`, `CategoryTest`, `TrustScoreSourceTest` など（計 53 件）
+Feature テスト: `AuthTest`, `PostTest`, `CommentTest`, `ProfileTest`, `PublicProfileTest`, `CategoryTest`, `TrustScoreSourceTest` など
 
 テスト用DBを誤って開発用DBに向けないための`TestDatabaseGuard`（`backend/tests/Support/TestDatabaseGuard.php`）を導入済み。仕組み・保証範囲・検証済み/未検証の区別は [`docs/memo.md`](docs/memo.md) の「テスト用DB安全ガード」を参照。
+
+開発用DBに接続できない隔離コンテナ環境で、通常スイート・`tests/Integration`を実際に実行して成功したことの記録・再実行手順は [`docs/backend-isolated-verification.md`](docs/backend-isolated-verification.md) を参照。2026-09-22時点・コミット`45c3c27147d587eced61abdfa3c884340e4cfea8`での実行件数は、通常スイート259件＋`tests/Integration`別実行8件（重複なしで計267件）。件数は今後変わり得るため、常に現在の総数とは限らない。最新の内訳・実行結果は同文書を参照。
 
 ---
 
