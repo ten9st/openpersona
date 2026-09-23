@@ -18,14 +18,26 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <!--
+            APP_ENV・DB_CONNECTION・DB_DATABASE・DB_URLはforce="true"により、Docker等から
+            引き継いだ既存の環境変数より必ず優先する。
+            (PHPUnit\TextUI\Configuration\PhpHandler::handleEnvVariables()はforceが無い場合、
+            getenv()が既に値を持つ変数を上書きしない。Laravel側のLoadEnvironmentVariables
+            (.env読み込み)も同様に既存の環境変数を上書きしないため、Docker Composeの
+            environment:等で実際にDB_CONNECTION=pgsql等が設定されている場合、force無しでは
+            ここでのsqlite指定が効かない。ただしこれは環境変数の解決順序を固定するだけであり、
+            設定キャッシュ(bootstrap/cache/config.php)が存在する場合はenv()自体が呼ばれず、
+            この固定も効かない。そのため実効設定のチェックはtests/TestCase.phpのガードが
+            別途行う。)
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

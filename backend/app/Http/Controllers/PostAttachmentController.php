@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Post\Exceptions\PostAttachmentOperationFailedException;
 use App\Domain\Post\Models\Post;
 use App\Domain\Post\Models\PostAttachment;
 use App\Domain\Post\Presenters\PostAttachmentPresenter;
 use App\Domain\Post\Rules\PostAttachmentFile;
+use App\Domain\Post\Services\PostAttachmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 
 class PostAttachmentController extends Controller
 {
+    public function __construct(
+        private PostAttachmentService $postAttachmentService,
+    ) {}
+
     public function store(Request $request, Post $post)
     {
         Gate::authorize('attach', $post);
@@ -21,24 +26,21 @@ class PostAttachmentController extends Controller
             'files.*' => ['required', 'file', new PostAttachmentFile],
         ]);
 
-        $attachments = [];
+        try {
+            $attachments = $this->postAttachmentService->store($post, $validated['files']);
+        } catch (PostAttachmentOperationFailedException $e) {
+            report($e);
 
-        foreach ($validated['files'] as $file) {
-            $path = $file->store("attachments/{$post->id}", 'public');
-
-            $attachment = $post->attachments()->create([
-                'file_name' => $file->getClientOriginalName(),
-                'file_path' => $path,
-                'file_type' => PostAttachmentFile::resolveType($file),
-                'file_size' => $file->getSize(),
-            ]);
-
-            $attachments[] = PostAttachmentPresenter::format($attachment);
+            return response()->json([
+                'message' => '添付ファイルのアップロードに失敗しました。時間をおいて再度お試しください。',
+            ], 500);
         }
 
         return response()->json([
             'message' => '添付ファイルをアップロードしました。',
-            'attachments' => $attachments,
+            'attachments' => collect($attachments)
+                ->map(fn (PostAttachment $attachment) => PostAttachmentPresenter::format($attachment))
+                ->all(),
         ], 201);
     }
 
@@ -46,12 +48,15 @@ class PostAttachmentController extends Controller
     {
         Gate::authorize('attach', $post);
 
-        if ((int) $attachment->post_id !== (int) $post->id) {
-            abort(404);
-        }
+        try {
+            $this->postAttachmentService->destroy($post, $attachment);
+        } catch (PostAttachmentOperationFailedException $e) {
+            report($e);
 
-        Storage::disk('public')->delete($attachment->file_path);
-        $attachment->delete();
+            return response()->json([
+                'message' => '添付ファイルの削除に失敗しました。時間をおいて再度お試しください。',
+            ], 500);
+        }
 
         return response()->json([
             'message' => '添付ファイルを削除しました。',

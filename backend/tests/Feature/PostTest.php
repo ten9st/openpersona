@@ -82,6 +82,51 @@ class PostTest extends TestCase
             ->assertJsonPath('posts.0.user.trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
     }
 
+    public function test_post_list_shows_correct_max_score_even_when_trust_score_is_stale(): void
+    {
+        // 1. 本人確認済みユーザーと公開投稿を作成する。
+        $user = User::factory()->create(['birthdate' => '1990-01-01']);
+        Profile::create(['user_id' => $user->id, 'region' => '東京都']);
+
+        IdentityVerification::create([
+            'user_id' => $user->id,
+            'verification_method' => 'driver_license',
+            'verification_status' => IdentityVerification::STATUS_VERIFIED,
+            'verified_at' => now(),
+        ]);
+
+        $category = $this->createCategory();
+        $this->createPublishedPost($user, $category);
+
+        // 2. DBのTrustScore.max_scoreを50(未確認)へ変更する。
+        //    投稿作成より後に行うことで、PostObserver経由の再計算による
+        //    上書きを受けず、「DBに古い値が残っている」状態を維持する。
+        TrustScore::where('user_id', $user->id)->update([
+            'max_score' => TrustScore::MAX_SCORE_UNVERIFIED,
+        ]);
+
+        // 3. リクエスト直前に、DBのmax_scoreが50であることを確認する。
+        $this->assertSame(
+            TrustScore::MAX_SCORE_UNVERIFIED,
+            (int) TrustScore::where('user_id', $user->id)->value('max_score'),
+            '事前条件: DBのmax_scoreが50(未確認)になっているはず。'
+        );
+
+        // 4. 投稿一覧を取得し、本人確認済み表示・max_score=100を確認する。
+        $this->getJson('/api/posts')
+            ->assertOk()
+            ->assertJsonPath('posts.0.user.identity_verified', true)
+            ->assertJsonPath('posts.0.user.trust_score.max_score', TrustScore::MAX_SCORE_VERIFIED);
+
+        // 5. リクエスト後もDBのmax_scoreは50のままであること
+        //    (一覧表示ではDBの補完・同期を行わない方針)を確認する。
+        $this->assertSame(
+            TrustScore::MAX_SCORE_UNVERIFIED,
+            (int) TrustScore::where('user_id', $user->id)->value('max_score'),
+            '一覧表示によってDBのmax_scoreが書き換えられてしまっています。'
+        );
+    }
+
     public function test_guest_can_view_published_post(): void
     {
         $user = User::factory()->create(['birthdate' => '1990-01-01']);

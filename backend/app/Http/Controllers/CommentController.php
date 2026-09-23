@@ -2,36 +2,33 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Post\Models\Comment;
 use App\Domain\Post\Models\Post;
+use App\Domain\Post\Services\CommentService;
+use App\Domain\Profile\QueryServices\PublicProfileQueryService;
 use App\Support\PublicProfilePresenter;
 use Illuminate\Http\Request;
 
 class CommentController extends Controller
 {
+    public function __construct(
+        private CommentService $commentService,
+    ) {}
+
     public function store(Request $request, Post $post)
     {
-        if ($post->status !== 'published') {
-            abort(404);
-        }
+        // 本文の検証より先に投稿の公開状態を確認し、下書き・論理削除済み
+        // 投稿には既存どおり404を優先させる(422より先に404にする)。
+        $this->commentService->ensurePostIsCommentable($post);
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
-        $comment = Comment::create([
-            'post_id' => $post->id,
-            'user_id' => $request->user()->id,
-            'body' => $validated['body'],
-        ]);
+        $comment = $this->commentService->create($request->user(), $post, $validated['body']);
 
         $comment->load([
             'user:id,last_name,first_name,birthdate',
-            'user.profile:id,user_id,region',
-            'user.profileVisibilities' => fn ($query) => $query
-                ->select(['id', 'user_id', 'field_name', 'is_public'])
-                ->where('field_name', 'first_name'),
-            'user.identityVerifications:id,user_id,verification_status',
+            ...PublicProfileQueryService::summaryRelations('user'),
         ]);
 
         $commentArray = $comment->toArray();

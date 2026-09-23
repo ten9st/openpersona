@@ -2,34 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Post\Models\Tag;
+use App\Domain\Post\QueryServices\TagQueryService;
+use App\Domain\Post\Services\TagService;
 use Illuminate\Http\Request;
 
 class TagController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, TagQueryService $tagQueryService)
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $query = Tag::query()->orderBy('name');
-
-        if (! empty($validated['search'])) {
-            $keyword = $validated['search'];
-            $query->where('name', 'like', '%'.$keyword.'%');
-        }
-
-        $tags = $query
-            ->limit(20)
-            ->get(['id', 'name', 'slug']);
-
         return response()->json([
-            'tags' => $tags,
+            'tags' => $tagQueryService->search($validated['search'] ?? null),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TagService $tagService)
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -43,20 +33,11 @@ class TagController extends Controller
             ], 422);
         }
 
-        $existing = Tag::findByName($name);
-
-        if ($existing !== null) {
-            return response()->json([
-                'tag' => $existing->only(['id', 'name', 'slug']),
-                'created' => false,
-            ]);
-        }
-
-        $tag = Tag::createFromName($name);
+        $result = $tagService->findOrCreateByName($name);
 
         return response()->json([
-            'tag' => $tag->only(['id', 'name', 'slug']),
-            'created' => true,
-        ], 201);
+            'tag' => $result['tag']->only(['id', 'name', 'slug']),
+            'created' => $result['created'],
+        ], $result['created'] ? 201 : 200);
     }
 }
