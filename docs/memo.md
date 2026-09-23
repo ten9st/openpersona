@@ -115,3 +115,5 @@ Dockerなどから引き継いだ環境変数によって、テストの`Refresh
 - ガードが実際に効くのは、PHPUnitのプロセスが個々のテストの`setUp()`に到達し、`Tests\TestCase::createApplication()`が呼ばれてから`LoadConfiguration`のbootstrapが完了した時点以降。
 - 今回確認できた安全な実行経路は、上記の独立したガード単体テストのみ。通常のFeatureテストを含むスイート全体を`vendor/bin/phpunit`/`composer test`/`php artisan test`のいずれで実行した場合でも、ガードが実際に安全側で機能することは、まだ実行して確認していない。
 - 登録・ログインのテストはSQLite(`:memory:`)のみで、PostgreSQL・ブラウザ・実際のCookie通信は未検証。
+
+**追記(2026-09-22):** 上記の「まだ実行確認していないこと」「安全な入口についての訂正」は、その時点までの状況である。この後、開発用DBに一切接続できない隔離コンテナ環境で、通常スイート(`tests/Unit`+`tests/Feature`)と`tests/Integration`を実際に実行し、いずれも成功したことを確認した。隔離条件・実行手順・結果の詳細は重複を避けるため記載しない。[`docs/backend-isolated-verification.md`](backend-isolated-verification.md) を参照。PostgreSQL・ブラウザでの確認は今回も未実施のまま。
