@@ -19,7 +19,9 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<PostTag[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [message, setMessage] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [searchMessage, setSearchMessage] = useState('');
+  const [createMessage, setCreateMessage] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -32,27 +34,46 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
       return;
     }
 
+    // 入力・選択済みタグの変更やアンマウントで古くなった検索の結果は反映しない。
+    // (通信自体は中断しない)
+    let ignore = false;
+
     const timer = window.setTimeout(async () => {
       setIsSearching(true);
-      setMessage('');
+      setSearchMessage('');
 
       try {
         const results = await searchTags(keyword);
+
+        if (ignore) {
+          return;
+        }
+
         setSuggestions(
           results.filter(
             (tag) => !tags.some((selected) => selected.id === tag.id),
           ),
         );
       } catch (error) {
-        setMessage(
+        if (ignore) {
+          return;
+        }
+
+        setSearchMessage(
           error instanceof Error ? error.message : 'タグの取得に失敗しました。',
         );
       } finally {
-        setIsSearching(false);
+        // 古い検索の完了で、後続の検索中表示を解除しない。
+        if (!ignore) {
+          setIsSearching(false);
+        }
       }
     }, 250);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
   }, [input, tags]);
 
   useEffect(() => {
@@ -78,8 +99,10 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
     onChange([...tags, tag]);
     setInput('');
     setSuggestions([]);
+    setIsSearching(false);
     setShowSuggestions(false);
-    setMessage('');
+    setSearchMessage('');
+    setCreateMessage('');
   };
 
   const removeTag = (tagId: number) => {
@@ -89,7 +112,7 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
   const handleCreateOrSelect = async () => {
     const name = input.trim();
 
-    if (!name) {
+    if (!name || isCreating) {
       return;
     }
 
@@ -105,21 +128,22 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
     if (alreadySelected) {
       setInput('');
       setSuggestions([]);
+      setIsSearching(false);
       return;
     }
 
-    setMessage('');
-    setIsSearching(true);
+    setCreateMessage('');
+    setIsCreating(true);
 
     try {
       const tag = await createTag(name);
       addTag(tag);
     } catch (error) {
-      setMessage(
+      setCreateMessage(
         error instanceof Error ? error.message : 'タグの作成に失敗しました。',
       );
     } finally {
-      setIsSearching(false);
+      setIsCreating(false);
     }
   };
 
@@ -175,6 +199,7 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
 
             if (!e.target.value.trim()) {
               setSuggestions([]);
+              setIsSearching(false);
             }
           }}
           onFocus={() => setShowSuggestions(true)}
@@ -183,7 +208,9 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
 
         {showSuggestions && input.trim() && (
           <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-card shadow-md">
-            {isSearching ? (
+            {isCreating ? (
+              <p className="px-3 py-2 text-sm text-muted">タグを作成中...</p>
+            ) : isSearching ? (
               <p className="px-3 py-2 text-sm text-muted">検索中...</p>
             ) : suggestions.length > 0 ? (
               <ul>
@@ -213,14 +240,20 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
           type="button"
           variant="secondary"
           className="text-xs"
-          disabled={!input.trim() || isSearching}
+          disabled={!input.trim() || isSearching || isCreating}
           onClick={handleCreateOrSelect}
         >
           タグを追加
         </Button>
       </div>
 
-      {message && <p className="text-xs text-destructive">{message}</p>}
+      {/* 利用者が実行した作成のエラーを先に、検索のエラーをその後に表示する */}
+      {createMessage && (
+        <p className="text-xs text-destructive">{createMessage}</p>
+      )}
+      {searchMessage && (
+        <p className="text-xs text-destructive">{searchMessage}</p>
+      )}
     </div>
   );
 }

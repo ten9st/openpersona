@@ -25,14 +25,25 @@ try {
   }
 }
 
+// E2E_PORT を指定すると、そのポートで起動した開発サーバーだけを使う
+// (既存サーバーは再利用しない)。未指定時は従来どおり3000番で、起動済みの
+// サーバーがあれば再利用する。
+const e2ePort = process.env.E2E_PORT
+
+if (e2ePort !== undefined && !/^[1-9]\d{0,4}$/.test(e2ePort)) {
+  throw new Error(`E2E_PORT が不正です: ${e2ePort}`)
+}
+
+const baseURL = `http://localhost:${e2ePort ?? 3000}`
+
 export default defineConfig({
   testDir: './e2e',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
   },
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    command: e2ePort ? `npm run dev -- --port ${e2ePort}` : 'npm run dev',
+    url: baseURL,
+    reuseExistingServer: e2ePort === undefined,
   },
 })
