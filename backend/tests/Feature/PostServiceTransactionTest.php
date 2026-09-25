@@ -270,17 +270,21 @@ class PostServiceTransactionTest extends TestCase
         $user = User::factory()->create();
         $category = $this->createCategory();
 
+        // 削除が許可されるのは下書きのみ。
         $post = Post::create([
             'user_id' => $user->id,
             'category_id' => $category->id,
-            'title' => '公開投稿',
+            'title' => '下書き',
             'body' => '本文',
-            'status' => 'published',
-            'published_at' => now(),
+            'status' => 'draft',
         ]);
 
-        // 直前の投稿公開によって発生した実スコアを起点(baseline)とする。
-        $baseline = (int) TrustScore::query()->where('user_id', $user->id)->value('total_score');
+        // スコアは公開投稿だけを数えるため、下書きの削除では再計算結果が変わらない。
+        // 保存済みスコアを再計算結果と異なる値(古い値)にしておき、observerによる
+        // 再計算がスコアを実際に書き換える条件を作る。
+        $currentScore = (int) TrustScore::query()->where('user_id', $user->id)->value('total_score');
+        $baseline = $currentScore + 1;
+        TrustScore::query()->where('user_id', $user->id)->update(['total_score' => $baseline]);
 
         $spy = $this->bindFailingTrustScoreService(failOnCall: 1);
         $service = new PostService;
@@ -303,7 +307,7 @@ class PostServiceTransactionTest extends TestCase
         );
 
         $post->refresh();
-        $this->assertSame('published', $post->status, '投稿ステータスが元の状態(published)に復元されていません。');
+        $this->assertSame('draft', $post->status, '投稿ステータスが元の状態(draft)に復元されていません。');
 
         $this->assertSame(
             $baseline,

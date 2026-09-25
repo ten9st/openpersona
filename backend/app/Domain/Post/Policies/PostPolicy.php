@@ -19,12 +19,17 @@ class PostPolicy
 
     public function delete(User $user, Post $post): bool
     {
-        return $this->owns($user, $post);
+        return $this->owns($user, $post) && $post->status === 'draft';
     }
 
     public function attach(User $user, Post $post): bool
     {
         return $this->owns($user, $post) && $post->status !== 'deleted';
+    }
+
+    public function detachAttachment(User $user, Post $post): bool
+    {
+        return $this->owns($user, $post) && $post->status === 'draft';
     }
 
     private function owns(User $user, Post $post): bool

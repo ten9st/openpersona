@@ -35,6 +35,7 @@ type Post = {
   view_count: number;
   bookmark_count: number;
   is_bookmarked?: boolean;
+  status: 'draft' | 'published';
   published_at: string | null;
   comments: Comment[];
 
@@ -149,6 +150,7 @@ export default function PostDetailPage() {
 
   const isAuthor =
     post != null && currentUserId != null && post.user.id === currentUserId;
+  const canDelete = isAuthor && post?.status === 'draft';
 
   const toggleBookmark = async () => {
     if (!postId) {
@@ -384,17 +386,19 @@ export default function PostDetailPage() {
                   >
                     {isCopying ? 'コピー中...' : 'コピーして訂正投稿を作成'}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => {
-                      setDeleteMessage('');
-                      setDeleteIsError(false);
-                      setShowDeleteDialog(true);
-                    }}
-                  >
-                    投稿を削除
-                  </Button>
+                  {canDelete && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        setDeleteMessage('');
+                        setDeleteIsError(false);
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      投稿を削除
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
