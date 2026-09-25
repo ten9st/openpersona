@@ -39,6 +39,17 @@ class PostTest extends TestCase
         ]);
     }
 
+    private function createDraftPost(User $user, Category $category): Post
+    {
+        return Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '下書き',
+            'body' => '本文です。',
+            'status' => 'draft',
+        ]);
+    }
+
     public function test_guest_can_list_published_posts(): void
     {
         $user = User::factory()->create(['birthdate' => '1990-01-01']);
@@ -846,11 +857,11 @@ class PostTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_author_can_delete_own_post(): void
+    public function test_author_can_delete_own_draft(): void
     {
         $user = User::factory()->create();
         $category = $this->createCategory();
-        $post = $this->createPublishedPost($user, $category);
+        $post = $this->createDraftPost($user, $category);
 
         Sanctum::actingAs($user);
 
@@ -858,9 +869,95 @@ class PostTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', '投稿を削除しました。');
 
+        // 物理削除ではなく、レコードを残したまま status を deleted にする。
         $this->assertDatabaseHas('posts', [
             'id' => $post->id,
             'status' => 'deleted',
+        ]);
+    }
+
+    public function test_deleted_draft_is_hidden_from_drafts_list_and_detail(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertOk();
+
+        $this->getJson('/api/posts/drafts')
+            ->assertOk()
+            ->assertJsonCount(0, 'posts');
+
+        $token = $user->createToken('openpersona_token')->plainTextToken;
+
+        $this->getJson("/api/posts/{$post->id}", [
+            'Authorization' => "Bearer {$token}",
+        ])->assertNotFound();
+    }
+
+    public function test_author_cannot_delete_own_published_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $publishedAt = $post->published_at->toDateTimeString();
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertForbidden();
+
+        $post->refresh();
+        $this->assertSame('published', $post->status);
+        $this->assertSame($publishedAt, $post->published_at?->toDateTimeString());
+    }
+
+    public function test_author_cannot_delete_already_deleted_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+        $post->update(['status' => 'deleted']);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'deleted',
+        ]);
+    }
+
+    public function test_user_cannot_delete_other_users_draft(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($author, $category);
+
+        Sanctum::actingAs($other);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'draft',
+        ]);
+    }
+
+    public function test_guest_cannot_delete_draft(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+
+        $this->deleteJson("/api/posts/{$post->id}")->assertUnauthorized();
+
+        $this->assertDatabaseHas('posts', [
+            'id' => $post->id,
+            'status' => 'draft',
         ]);
     }
 

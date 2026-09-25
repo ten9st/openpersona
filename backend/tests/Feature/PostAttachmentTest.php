@@ -45,6 +45,32 @@ class PostAttachmentTest extends TestCase
         ]);
     }
 
+    private function createPublishedPost(User $user, Category $category): Post
+    {
+        return Post::create([
+            'user_id' => $user->id,
+            'category_id' => $category->id,
+            'title' => '公開投稿',
+            'body' => '本文',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+    }
+
+    private function createStoredAttachment(Post $post): PostAttachment
+    {
+        $path = "attachments/{$post->id}/sample.jpg";
+        Storage::disk('public')->put($path, 'image-data');
+
+        return PostAttachment::create([
+            'post_id' => $post->id,
+            'file_name' => 'sample.jpg',
+            'file_path' => $path,
+            'file_type' => 'image',
+            'file_size' => 100,
+        ]);
+    }
+
     public function test_guest_cannot_upload_attachments(): void
     {
         $user = User::factory()->create();
@@ -384,13 +410,66 @@ class PostAttachmentTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        // 認可(attach)は自分の投稿Bに対しては通るが、添付は投稿Aに
-        // 属するため404になる。
+        // 認可(detachAttachment)は自分の下書きである投稿Bに対しては通るが、
+        // 添付は投稿Aに属するため404になる。
         $this->deleteJson("/api/posts/{$postB->id}/attachments/{$attachment->id}")
             ->assertNotFound();
 
         $this->assertDatabaseHas('post_attachments', ['id' => $attachment->id]);
         Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_author_cannot_delete_attachment_of_published_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+        $attachment = $this->createStoredAttachment($post);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}/attachments/{$attachment->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('post_attachments', ['id' => $attachment->id]);
+        Storage::disk('public')->assertExists($attachment->file_path);
+    }
+
+    public function test_author_cannot_delete_attachment_of_deleted_post(): void
+    {
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createDraftPost($user, $category);
+        $attachment = $this->createStoredAttachment($post);
+        $post->update(['status' => 'deleted']);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/posts/{$post->id}/attachments/{$attachment->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('post_attachments', ['id' => $attachment->id]);
+        Storage::disk('public')->assertExists($attachment->file_path);
+    }
+
+    public function test_author_can_upload_attachment_to_published_post(): void
+    {
+        // 作成画面は投稿を公開してから添付をアップロードするため、
+        // 公開済み投稿への追加は引き続き許可する。
+        $user = User::factory()->create();
+        $category = $this->createCategory();
+        $post = $this->createPublishedPost($user, $category);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/posts/{$post->id}/attachments", [
+            'files' => [UploadedFile::fake()->create('document.pdf', 10, 'application/pdf')],
+        ])->assertCreated()
+            ->assertJsonCount(1, 'attachments');
+
+        $attachment = PostAttachment::query()->firstOrFail();
+        $this->assertSame($post->id, $attachment->post_id);
+        Storage::disk('public')->assertExists($attachment->file_path);
     }
 
     public function test_post_attachment_service_destroy_enforces_post_ownership_directly(): void

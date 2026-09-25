@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
@@ -91,26 +90,33 @@ export default function DraftsPage() {
         )}
 
         {drafts.map((post) => (
-          <Link key={post.id} href={`/posts/${post.id}/edit`}>
-            <Card className="transition-colors hover:border-primary/30">
-              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
-                  {post.category.name}
-                </span>
-                <span className="rounded-full border border-border px-2.5 py-0.5 text-muted">
-                  下書き
-                </span>
-              </div>
+          <Card key={post.id}>
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
+                {post.category.name}
+              </span>
+              <span className="rounded-full border border-border px-2.5 py-0.5 text-muted">
+                下書き
+              </span>
+            </div>
 
-              <h2 className="text-lg font-semibold text-foreground">
-                {post.title}
-              </h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              {post.title}
+            </h2>
 
-              <p className="mt-3 text-xs text-muted">
-                更新 {formatDate(post.updated_at)}
-              </p>
-            </Card>
-          </Link>
+            <p className="mt-3 text-xs text-muted">
+              更新 {formatDate(post.updated_at)}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <NavLink href={`/posts/${post.id}/edit`} variant="primary">
+                編集する<span className="sr-only">：{post.title}</span>
+              </NavLink>
+              <NavLink href={`/posts/${post.id}`}>
+                詳細を見る<span className="sr-only">：{post.title}</span>
+              </NavLink>
+            </div>
+          </Card>
         ))}
       </div>
     </PageShell>
