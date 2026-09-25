@@ -46,7 +46,7 @@ class PostAttachmentController extends Controller
 
     public function destroy(Post $post, PostAttachment $attachment)
     {
-        Gate::authorize('attach', $post);
+        Gate::authorize('detachAttachment', $post);
 
         try {
             $this->postAttachmentService->destroy($post, $attachment);

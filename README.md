@@ -124,7 +124,7 @@ openpersona/
 | 投稿ソース（参考文献）の登録・表示 | ✅ | ✅ |
 | 下書き一覧・下書きの編集 | ✅ | ✅ |
 | 公開済み投稿のコピー（訂正用下書き作成） | ✅ | ✅ |
-| 投稿の削除（論理削除、投稿者のみ） | ✅ | ✅ |
+| 投稿の削除（論理削除、投稿者のみ・下書きのみ） | ✅ | ✅ |
 | コメント投稿・表示 | ✅ | ✅ |
 | 閲覧数カウント（重複排除） | ✅ | ✅ |
 | 本人確認済みバッジ表示 | ✅ | ✅ |
@@ -190,7 +190,8 @@ openpersona/
 - `PostPolicy` により投稿の更新・削除・コピーを制御
   - **更新**: 投稿者本人かつ `status = draft` のみ
   - **コピー**: 投稿者本人かつ `status !== deleted`
-  - **削除**: 投稿者本人
+  - **削除**: 投稿者本人かつ `status = draft` のみ（公開済みは本人でも削除不可）
+  - **添付削除**: 投稿者本人かつ `status = draft` のみ（添付の追加は `status !== deleted` で許可）
 
 ### 未実装
 
@@ -279,7 +280,7 @@ openpersona/
 | `POST` | `/api/posts` | 必須 | 投稿作成 |
 | `PUT` | `/api/posts/{post}` | 必須 | 下書きの更新・公開 |
 | `POST` | `/api/posts/{post}/copy` | 必須 | 訂正用に投稿を下書きコピー |
-| `DELETE` | `/api/posts/{post}` | 必須 | 投稿の論理削除 |
+| `DELETE` | `/api/posts/{post}` | 必須 | 下書きの論理削除 |
 
 #### `GET /api/posts`
 
@@ -409,7 +410,7 @@ openpersona/
 
 #### `DELETE /api/posts/{post}`
 
-**条件:** 投稿者本人
+**条件:** 投稿者本人かつ `status = draft` のみ（公開済み・削除済みは **403**）
 
 **副作用:** `status` を `deleted` に更新（物理削除ではない）
 
@@ -502,7 +503,7 @@ DELETE /api/posts/{post}/attachments/{attachment}  添付ファイル削除
 | メソッド | パス | 認証 | 説明 |
 |----------|------|:----:|------|
 | `POST` | `/api/posts/{post}/attachments` | 必須 | 画像・PDF の添付（投稿者のみ） |
-| `DELETE` | `/api/posts/{post}/attachments/{attachment}` | 必須 | 添付削除（投稿者のみ） |
+| `DELETE` | `/api/posts/{post}/attachments/{attachment}` | 必須 | 添付削除（投稿者のみ・下書きのみ。公開済みは **403**） |
 
 ---
 
@@ -676,7 +677,7 @@ posts n──n tags (post_tags)
 | 値 | 説明 |
 |----|------|
 | `draft` | 下書き（投稿者のみ閲覧・編集可） |
-| `published` | 公開（編集不可。コピーで訂正用下書きを作成） |
+| `published` | 公開（編集・削除不可。コピーで訂正用下書きを作成） |
 | `deleted` | 論理削除（一覧・詳細から非表示） |
 
 ### 透明性スコア（`TrustScoreService`）

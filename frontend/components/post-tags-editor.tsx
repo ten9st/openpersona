@@ -29,7 +29,6 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
     const keyword = input.trim();
 
     if (!keyword) {
-      setSuggestions([]);
       return;
     }
 
@@ -39,7 +38,11 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
 
       try {
         const results = await searchTags(keyword);
-        setSuggestions(results.filter((tag) => !selectedIds.has(tag.id)));
+        setSuggestions(
+          results.filter(
+            (tag) => !tags.some((selected) => selected.id === tag.id),
+          ),
+        );
       } catch (error) {
         setMessage(
           error instanceof Error ? error.message : 'タグの取得に失敗しました。',
@@ -101,6 +104,7 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
 
     if (alreadySelected) {
       setInput('');
+      setSuggestions([]);
       return;
     }
 
@@ -168,6 +172,10 @@ export function PostTagsEditor({ tags, onChange }: PostTagsEditorProps) {
           onChange={(e) => {
             setInput(e.target.value);
             setShowSuggestions(true);
+
+            if (!e.target.value.trim()) {
+              setSuggestions([]);
+            }
           }}
           onFocus={() => setShowSuggestions(true)}
           onKeyDown={handleKeyDown}
