@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { NavLink } from '@/components/nav-links';
@@ -26,20 +26,31 @@ const features = [
   },
 ];
 
+// ログイン用トークンの有無は、ブラウザの localStorage にしか無い。
+// サーバー描画とハイドレーション時は「未確定(null)」とし、ブラウザでは
+// トークンの有無を読み取る。
+// - 変更は購読しない。ログイン・ログアウトをリアルタイムに共有する認証ストアではない。
+// - トークンが存在するかだけを見ており、有効性(期限切れ・失効など)は確認しない。
+const subscribeToNothing = () => () => {};
+const getHasTokenSnapshot = () => Boolean(getAuthToken());
+const getServerHasTokenSnapshot = () => null;
+
 export default function Home() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const hasToken = useSyncExternalStore<boolean | null>(
+    subscribeToNothing,
+    getHasTokenSnapshot,
+    getServerHasTokenSnapshot,
+  );
 
   useEffect(() => {
-    if (getAuthToken()) {
+    if (hasToken) {
       router.replace('/posts');
-      return;
     }
+  }, [hasToken, router]);
 
-    setReady(true);
-  }, [router]);
-
-  if (!ready) {
+  // 判定中(null)と、トークンがあり /posts へ移動する間は読み込み表示にする
+  if (hasToken !== false) {
     return (
       <div className="min-h-full bg-background">
         <div className="mx-auto max-w-5xl px-6 py-10">
