@@ -27,14 +27,156 @@ type Post = {
   tags?: PostTag[];
 };
 
+type PostsResult =
+  | { status: 'success'; posts: Post[] }
+  | { status: 'error' };
+
+type PostsListSectionProps = {
+  tagSlug: string | null;
+};
+
+// 投稿一覧の取得・絞り込み表示・一覧を担当する。
+// 親は取得条件(タグ)をkeyにして描画するため、条件が変わるとこの部分だけ作り直され、
+// 結果は未取得(null = 読み込み中)から始まる。前の条件の一覧やエラーは表示しない。
+function PostsListSection({ tagSlug }: PostsListSectionProps) {
+  const [result, setResult] = useState<PostsResult | null>(null);
+
+  useEffect(() => {
+    // cleanup(アンマウント、Strict Mode での再実行など)の後に届いた成功・失敗は反映しない。
+    // 通信自体は中断しない。
+    let ignore = false;
+
+    const fetchPosts = async () => {
+      const params = new URLSearchParams();
+      if (tagSlug) {
+        params.set('tag', tagSlug);
+      }
+
+      const query = params.toString();
+
+      try {
+        const res = await fetch(`${API_BASE}/api/posts${query ? `?${query}` : ''}`, {
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        const data = await res.json();
+
+        if (ignore) {
+          return;
+        }
+
+        setResult(
+          res.ok ? { status: 'success', posts: data.posts } : { status: 'error' },
+        );
+      } catch {
+        // 通信失敗・JSONとして読めない応答
+        if (!ignore) {
+          setResult({ status: 'error' });
+        }
+      }
+    };
+
+    fetchPosts();
+
+    return () => {
+      ignore = true;
+    };
+  }, [tagSlug]);
+
+  const posts = result?.status === 'success' ? result.posts : [];
+
+  // タグの表示名は、取得した一覧に含まれるタグから求める。
+  // 取得前・取得失敗時・一覧に該当タグが無い場合は、URLのslugをそのまま表示する。
+  const activeTagName =
+    tagSlug != null
+      ? posts.flatMap((post) => post.tags ?? []).find((tag) => tag.slug === tagSlug)
+          ?.name ?? tagSlug
+      : null;
+
+  return (
+    <>
+      {tagSlug && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted">
+            タグ{' '}
+            <span className="font-medium text-foreground">#{activeTagName}</span>{' '}
+            で絞り込み中
+          </span>
+          <Link
+            href="/posts"
+            className="font-medium text-primary hover:underline"
+          >
+            絞り込みを解除
+          </Link>
+        </div>
+      )}
+
+      {result === null && (
+        <div className="mb-6">
+          <Alert message="読み込み中..." variant="info" />
+        </div>
+      )}
+
+      {result?.status === 'error' && (
+        <div className="mb-6">
+          <Alert message="投稿一覧取得に失敗しました。" variant="error" />
+        </div>
+      )}
+
+      {result?.status === 'success' && (
+        <div className="grid gap-4">
+          {posts.length === 0 && (
+            <Card>
+              <p className="text-center text-muted">
+                {tagSlug
+                  ? 'このタグの投稿はまだありません。'
+                  : 'まだ投稿がありません。'}
+              </p>
+            </Card>
+          )}
+
+          {posts.map((post) => (
+            <Card
+              key={post.id}
+              className="transition-colors hover:border-primary/30"
+            >
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
+                  {post.category.name}
+                </span>
+                <AuthorLink user={post.user} />
+              </div>
+
+              <Link href={`/posts/${post.id}`}>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {post.title}
+                </h2>
+              </Link>
+
+              <PostTagBadges tags={post.tags ?? []} className="mt-3" />
+
+              <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
+                <span>閲覧 {post.view_count}</span>
+                <span>付箋 {post.bookmark_count}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function PostsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tagSlug = searchParams.get('tag');
+  // タグ指定なし(null)と空文字(?tag=)を区別する。APIへ送るクエリは PostsListSection で
+  // 従来どおり組み立てる(空文字の場合は tag を送らない)。
+  const requestKey = tagSlug === null ? 'all' : `tag:${tagSlug}`;
 
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [message, setMessage] = useState('');
-  const [isError, setIsError] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const logout = async () => {
@@ -43,47 +185,9 @@ function PostsPageContent() {
     router.push('/login');
   };
 
-  const fetchPosts = async () => {
-    setMessage('読み込み中...');
-    setIsError(false);
-
-    const params = new URLSearchParams();
-    if (tagSlug) {
-      params.set('tag', tagSlug);
-    }
-
-    const query = params.toString();
-    const res = await fetch(`${API_BASE}/api/posts${query ? `?${query}` : ''}`, {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setMessage('投稿一覧取得に失敗しました。');
-      setIsError(true);
-      return;
-    }
-
-    setPosts(data.posts);
-    setMessage('');
-  };
-
   useEffect(() => {
     setIsLoggedIn(Boolean(localStorage.getItem('openpersona_token')));
   }, []);
-
-  useEffect(() => {
-    fetchPosts();
-  }, [tagSlug]);
-
-  const activeTagName =
-    tagSlug != null
-      ? posts.flatMap((post) => post.tags ?? []).find((tag) => tag.slug === tagSlug)
-          ?.name ?? tagSlug
-      : null;
 
   return (
     <PageShell maxWidth="xl">
@@ -113,66 +217,7 @@ function PostsPageContent() {
         )}
       </ActionBar>
 
-      {tagSlug && (
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
-          <span className="text-muted">
-            タグ{' '}
-            <span className="font-medium text-foreground">#{activeTagName}</span>{' '}
-            で絞り込み中
-          </span>
-          <Link
-            href="/posts"
-            className="font-medium text-primary hover:underline"
-          >
-            絞り込みを解除
-          </Link>
-        </div>
-      )}
-
-      {message && (
-        <div className="mb-6">
-          <Alert message={message} variant={isError ? 'error' : 'info'} />
-        </div>
-      )}
-
-      <div className="grid gap-4">
-        {posts.length === 0 && !message && (
-          <Card>
-            <p className="text-center text-muted">
-              {tagSlug
-                ? 'このタグの投稿はまだありません。'
-                : 'まだ投稿がありません。'}
-            </p>
-          </Card>
-        )}
-
-        {posts.map((post) => (
-          <Card
-            key={post.id}
-            className="transition-colors hover:border-primary/30"
-          >
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-              <span className="rounded-full bg-accent px-2.5 py-0.5 font-medium text-primary">
-                {post.category.name}
-              </span>
-              <AuthorLink user={post.user} />
-            </div>
-
-            <Link href={`/posts/${post.id}`}>
-              <h2 className="text-lg font-semibold text-foreground">
-                {post.title}
-              </h2>
-            </Link>
-
-            <PostTagBadges tags={post.tags ?? []} className="mt-3" />
-
-            <div className="mt-4 flex gap-4 border-t border-border pt-4 text-xs text-muted">
-              <span>閲覧 {post.view_count}</span>
-              <span>付箋 {post.bookmark_count}</span>
-            </div>
-          </Card>
-        ))}
-      </div>
+      <PostsListSection key={requestKey} tagSlug={tagSlug} />
     </PageShell>
   );
 }
