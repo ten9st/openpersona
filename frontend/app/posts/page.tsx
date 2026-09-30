@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
@@ -9,7 +9,7 @@ import { PostTagBadges } from '@/components/post-tag-badges';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { API_BASE, logout as apiLogout } from '@/lib/api';
+import { API_BASE, getAuthToken, logout as apiLogout } from '@/lib/api';
 import { type PostAuthor } from '@/lib/post-author';
 import { type PostTag } from '@/lib/post-tag';
 
@@ -30,6 +30,30 @@ type Post = {
 type PostsResult =
   | { status: 'success'; posts: Post[] }
   | { status: 'error' };
+
+// ログイン用トークンの有無は、ブラウザの localStorage にしか無い。
+// サーバー描画とハイドレーション時は「未確定(null)」とし、ブラウザでは
+// トークンの有無を読み取る。
+// - 変更の通知は、このページのログアウト操作(apiLogout の完了後)からだけ行う。
+//   別タブや他の処理によるトークンの変更には追従しない。共通の認証ストアではない。
+// - トークンが存在するかだけを見ており、有効性(期限切れ・失効など)は確認しない。
+const tokenListeners = new Set<() => void>();
+
+const subscribeToToken = (listener: () => void) => {
+  tokenListeners.add(listener);
+  return () => {
+    tokenListeners.delete(listener);
+  };
+};
+
+const notifyTokenChange = () => {
+  for (const listener of tokenListeners) {
+    listener();
+  }
+};
+
+const getHasTokenSnapshot = () => Boolean(getAuthToken());
+const getServerHasTokenSnapshot = () => null;
 
 type PostsListSectionProps = {
   tagSlug: string | null;
@@ -177,17 +201,19 @@ function PostsPageContent() {
   // 従来どおり組み立てる(空文字の場合は tag を送らない)。
   const requestKey = tagSlug === null ? 'all' : `tag:${tagSlug}`;
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const hasToken = useSyncExternalStore<boolean | null>(
+    subscribeToToken,
+    getHasTokenSnapshot,
+    getServerHasTokenSnapshot,
+  );
+  // 判定前(null)は、従来どおり未ログインの操作欄を表示する
+  const isLoggedIn = hasToken === true;
 
   const logout = async () => {
     await apiLogout();
-    setIsLoggedIn(false);
+    notifyTokenChange();
     router.push('/login');
   };
-
-  useEffect(() => {
-    setIsLoggedIn(Boolean(localStorage.getItem('openpersona_token')));
-  }, []);
 
   return (
     <PageShell maxWidth="xl">
