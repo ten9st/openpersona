@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ActionBar, NavLink } from '@/components/nav-links';
 import { Alert, PageHeader, PageShell } from '@/components/page-shell';
 import { Card } from '@/components/ui/card';
+import { API_BASE, authHeaders, getAuthToken } from '@/lib/api';
 
 type DraftPost = {
   id: number;
@@ -17,46 +18,60 @@ type DraftPost = {
   };
 };
 
+type DraftsResult =
+  | { status: 'success'; drafts: DraftPost[] }
+  | { status: 'error' };
+
 export default function DraftsPage() {
   const router = useRouter();
 
-  const [drafts, setDrafts] = useState<DraftPost[]>([]);
-  const [message, setMessage] = useState('');
-  const [isError, setIsError] = useState(false);
+  // 未取得(null = 読み込み中)から始まる
+  const [result, setResult] = useState<DraftsResult | null>(null);
 
-  const fetchDrafts = async () => {
-    const token = localStorage.getItem('openpersona_token');
+  useEffect(() => {
+    const token = getAuthToken();
 
+    // トークンが無ければログイン画面へ移動する(読み込み表示のまま)
     if (!token) {
       router.push('/login');
       return;
     }
 
-    setMessage('読み込み中...');
-    setIsError(false);
+    // cleanup(アンマウント、Strict Mode での再実行、router の変更による再実行など)の後に
+    // 届いた成功・失敗は反映しない。通信自体は中断しない。
+    let ignore = false;
 
-    const res = await fetch('http://localhost:8000/api/posts/drafts', {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const fetchDrafts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/posts/drafts`, {
+          headers: authHeaders(token),
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (!res.ok) {
-      setMessage('下書き一覧の取得に失敗しました。');
-      setIsError(true);
-      return;
-    }
+        if (ignore) {
+          return;
+        }
 
-    setDrafts(data.posts);
-    setMessage('');
-  };
+        setResult(
+          res.ok ? { status: 'success', drafts: data.posts } : { status: 'error' },
+        );
+      } catch {
+        // 通信失敗・JSONとして読めない応答
+        if (!ignore) {
+          setResult({ status: 'error' });
+        }
+      }
+    };
 
-  useEffect(() => {
     fetchDrafts();
-  }, []);
+
+    return () => {
+      ignore = true;
+    };
+  }, [router]);
+
+  const drafts = result?.status === 'success' ? result.drafts : [];
 
   const formatDate = (iso: string) => {
     return new Date(iso).toLocaleString('ja-JP');
@@ -76,14 +91,20 @@ export default function DraftsPage() {
         <NavLink href="/posts">公開済み一覧</NavLink>
       </ActionBar>
 
-      {message && (
+      {result === null && (
         <div className="mb-6">
-          <Alert message={message} variant={isError ? 'error' : 'info'} />
+          <Alert message="読み込み中..." variant="info" />
+        </div>
+      )}
+
+      {result?.status === 'error' && (
+        <div className="mb-6">
+          <Alert message="下書き一覧の取得に失敗しました。" variant="error" />
         </div>
       )}
 
       <div className="grid gap-4">
-        {drafts.length === 0 && !message && (
+        {result?.status === 'success' && drafts.length === 0 && (
           <Card>
             <p className="text-center text-muted">下書きはありません。</p>
           </Card>
