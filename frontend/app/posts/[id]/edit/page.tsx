@@ -35,73 +35,157 @@ type PostResponse = {
   };
 };
 
+/** 編集画面の初期化に使う、取得した投稿(GET /api/posts/{id} の post の一部) */
+type EditablePost = {
+  title: string;
+  body: string;
+  status: string;
+  category_id: number;
+  sources?: Parameters<typeof fromApiPostSource>[0][];
+};
+
+type PostResult =
+  | { status: 'success'; post: EditablePost }
+  | { status: 'error' };
+
+// 投稿IDを読み、投稿IDごとに取得部分を作り直す。
+// 投稿IDが変わると EditPostLoader とその内側のフォームは key により新しく作られ、
+// 取得結果・カテゴリ一覧・未保存の入力は破棄される(前の投稿の結果は表示しない)。
+// ページ遷移でアンマウントされるかどうかには依存しない。
 export default function EditPostPage() {
-  const router = useRouter();
   const params = useParams();
   const postId = params.id as string;
 
+  return <EditPostLoader key={postId} postId={postId} />;
+}
+
+type EditPostLoaderProps = {
+  postId: string;
+};
+
+// 投稿とカテゴリの取得と、読み込み中・取得失敗・フォームの表示の切り替えを担当する。
+// 投稿の取得に失敗した場合は、編集・保存・公開・コピーの操作を表示しない。
+function EditPostLoader({ postId }: EditPostLoaderProps) {
+  const router = useRouter();
+
+  // 未取得(null = 読み込み中)から始まる
+  const [result, setResult] = useState<PostResult | null>(null);
+  // 取得前・取得失敗時は空のまま(カテゴリ欄は従来どおり「読み込み中...」で選択不可)
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryId, setCategoryId] = useState('');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [sources, setSources] = useState<PostSourceInput[]>([]);
-  const [status, setStatus] = useState<'draft' | 'published'>('draft');
-  const [message, setMessage] = useState('');
-  const [isError, setIsError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCopying, setIsCopying] = useState(false);
 
-  const fetchCategories = async () => {
-    const res = await fetch(`${API_BASE}/api/categories`, {
-      headers: { Accept: 'application/json' },
-    });
-    const data = await res.json();
-
-    if (res.ok) {
-      setCategories(data.categories ?? []);
-    }
-  };
-
-  const fetchPost = async () => {
+  useEffect(() => {
     const token = getAuthToken();
 
+    // トークンが無ければログイン画面へ移動する(読み込み表示のまま)
     if (!token) {
       router.push('/login');
       return;
     }
 
-    setIsLoading(true);
-    setIsError(false);
+    // cleanup(アンマウント、Strict Mode での再実行、router の変更による再実行など)の後に
+    // 届いた成功・失敗は反映しない。通信自体は中断しない。
+    let ignore = false;
 
-    const res = await fetch(`${API_BASE}/api/posts/${postId}`, {
-      headers: authHeaders(token),
-    });
+    const fetchPost = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/posts/${postId}`, {
+          headers: authHeaders(token),
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (!res.ok) {
-      setMessage('投稿の取得に失敗しました。');
-      setIsError(true);
-      setIsLoading(false);
-      return;
-    }
+        if (ignore) {
+          return;
+        }
 
-    setTitle(data.post.title);
-    setBody(data.post.body);
-    setCategoryId(String(data.post.category_id));
-    setStatus(data.post.status === 'published' ? 'published' : 'draft');
-    setSources(
-      (data.post.sources ?? []).map((source: Parameters<typeof fromApiPostSource>[0]) =>
-        fromApiPostSource(source),
-      ),
-    );
-    setIsLoading(false);
-  };
+        setResult(
+          res.ok ? { status: 'success', post: data.post } : { status: 'error' },
+        );
+      } catch {
+        // 通信失敗・JSONとして読めない応答
+        if (!ignore) {
+          setResult({ status: 'error' });
+        }
+      }
+    };
+
+    fetchPost();
+
+    return () => {
+      ignore = true;
+    };
+  }, [postId, router]);
 
   useEffect(() => {
+    // cleanup の後に届いた応答は反映しない。取得に失敗した場合は何も反映しない。
+    let ignore = false;
+
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/categories`, {
+          headers: { Accept: 'application/json' },
+        });
+        const data = await res.json();
+
+        if (!ignore && res.ok) {
+          setCategories(data.categories ?? []);
+        }
+      } catch {
+        // 通信失敗・JSONとして読めない応答。カテゴリ一覧は空のまま
+      }
+    };
+
     fetchCategories();
-    fetchPost();
-  }, [postId]);
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (result === null) {
+    return (
+      <PageShell maxWidth="lg">
+        <Alert message="読み込み中..." variant="info" />
+      </PageShell>
+    );
+  }
+
+  if (result.status === 'error') {
+    return (
+      <PageShell maxWidth="lg">
+        <Alert message="投稿の取得に失敗しました。" variant="error" />
+      </PageShell>
+    );
+  }
+
+  return (
+    <EditPostForm postId={postId} post={result.post} categories={categories} />
+  );
+}
+
+type EditPostFormProps = {
+  postId: string;
+  post: EditablePost;
+  categories: Category[];
+};
+
+// 取得した投稿で入力状態を初期化し、保存・公開・コピーの操作を担当する。
+// post は初期値としてだけ使う。このコンポーネントがマウントされている間は、
+// props の変更(カテゴリ一覧の取得完了など)で未保存の入力を初期化し直さない。
+function EditPostForm({ postId, post, categories }: EditPostFormProps) {
+  const router = useRouter();
+
+  const [categoryId, setCategoryId] = useState(() => String(post.category_id));
+  const [title, setTitle] = useState(post.title);
+  const [body, setBody] = useState(post.body);
+  const [sources, setSources] = useState<PostSourceInput[]>(() =>
+    (post.sources ?? []).map((source) => fromApiPostSource(source)),
+  );
+  const status: 'draft' | 'published' =
+    post.status === 'published' ? 'published' : 'draft';
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
 
   const copyForCorrection = async () => {
     setIsCopying(true);
@@ -175,14 +259,6 @@ export default function EditPostPage() {
 
     router.push('/posts/drafts');
   };
-
-  if (isLoading) {
-    return (
-      <PageShell maxWidth="lg">
-        <Alert message="読み込み中..." variant="info" />
-      </PageShell>
-    );
-  }
 
   if (status === 'published') {
     return (
